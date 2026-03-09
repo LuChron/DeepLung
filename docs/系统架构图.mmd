@@ -1,0 +1,41 @@
+﻿flowchart TB
+    subgraph Client[前端表现层]
+        D[医生端 React]
+        P[患者端 React H5]
+    end
+
+    N[Nginx 网关]
+
+    subgraph Backend[业务层]
+        API[FastAPI API]
+        Q[Celery Worker]
+    end
+
+    subgraph AI[算法层]
+        AIE[AI Engine]
+        PRE[预处理\nSimpleITK + skimage]
+        SEG[3D U-Net 分割]
+        CLS[分类集成\nVGG/Inception/ResNet/DenseNet]
+    end
+
+    subgraph Data[数据层]
+        PG[(PostgreSQL)]
+        R[(Redis)]
+        M[(MinIO)]
+    end
+
+    D --> N
+    P --> N
+    N --> API
+
+    API --> PG
+    API --> M
+    API --> R
+
+    API --> Q
+    Q --> AIE
+
+    AIE --> PRE --> SEG --> CLS
+    AIE --> API
+
+    AIE --> M

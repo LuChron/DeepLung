@@ -1,0 +1,16 @@
+{
+  "name": "deeplung-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:doctor": "npm --prefix apps/doctor-web run dev",
+    "dev:patient": "npm --prefix apps/patient-h5 run dev",
+    "dev": "concurrently \"npm run dev:doctor\" \"npm run dev:patient\"",
+    "build:doctor": "npm --prefix apps/doctor-web run build",
+    "build:patient": "npm --prefix apps/patient-h5 run build",
+    "build": "npm run build:doctor && npm run build:patient"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

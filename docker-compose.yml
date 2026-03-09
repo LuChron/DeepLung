@@ -1,0 +1,88 @@
+﻿version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: deeplung-postgres
+    environment:
+      POSTGRES_USER: deeplung
+      POSTGRES_PASSWORD: deeplung
+      POSTGRES_DB: deeplung
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: deeplung-redis
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    container_name: deeplung-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  ai-engine:
+    build:
+      context: ./ai-engine
+      dockerfile: Dockerfile
+    container_name: deeplung-ai-engine
+    environment:
+      AI_APP_NAME: DeepLung AI Engine
+      AI_APP_PORT: 8100
+      DETECTOR_PROVIDER: mock
+      MODEL_VERSION: baseline-mock-v1
+      FALLBACK_TO_MOCK_ON_ERROR: "true"
+      MONAI_BUNDLE_REPO_ID: MONAI/lung_nodule_ct_detection
+      MONAI_BUNDLE_DIR: /app/models/lung_nodule_ct_detection
+      MONAI_AUTO_DOWNLOAD: "true"
+      MONAI_INFER_CONFIG_RELPATH: configs/inference.json
+      MONAI_META_FILE_RELPATH: configs/metadata.json
+      MONAI_DEVICE: cpu
+    ports:
+      - "8100:8100"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: deeplung-backend
+    environment:
+      APP_NAME: DeepLung Backend
+      APP_PORT: 8000
+      JWT_SECRET: replace-me
+      AI_ENGINE_BASE_URL: http://ai-engine:8100
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - ai-engine
+      - redis
+      - postgres
+      - minio
+    ports:
+      - "8000:8000"
+
+  nginx:
+    image: nginx:1.27
+    container_name: deeplung-nginx
+    depends_on:
+      - backend
+      - ai-engine
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx/html:/usr/share/nginx/html:ro
+    ports:
+      - "80:80"
+
+volumes:
+  pg_data:
+  minio_data:
