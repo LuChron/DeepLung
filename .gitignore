@@ -21,6 +21,7 @@ dist/
 *.raw
 *.dcm
 *.db
+tmp_*.nii.gz
 ai-engine/models/lung_nodule_ct_detection_hf/
 
 # Logs

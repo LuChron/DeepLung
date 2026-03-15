@@ -13,8 +13,9 @@
 3. 后端创建并持久化推理任务，轮询状态并落库结果。
 4. 后端生成病例级风险分层并更新医生分诊列表。
 5. 医生端签发报告，报告持久化并返回 `report_id`。
-6. 患者端按 `report_id` 查看报告、结节明细、随访日期。
-7. 患者端聊天走后端 `/api/v1/chat/assistant`，默认 `mock`，后续可一键切 `external`。
+6. 医生可向患者发送消息，患者端可在 `Messages` 页面查看。
+7. 患者端按 `report_id` 查看报告、结节明细、随访日期。
+8. 患者端聊天走后端 `/api/v1/chat/assistant`，默认 `mock`，后续可一键切 `external`。
 
 ## 2. 技术路线
 
@@ -68,10 +69,13 @@ DeepLung/
   - `jobs`
   - `patient_triage`
   - `reports`
+  - `doctor_patient_messages`
 
 启动时自动建表与初始化种子数据（用户、演示分诊、演示报告）。
 
 ## 5. 快速启动（推荐 Linux/macOS Bash）
+
+说明：当前推荐直接用 Conda + 本地进程启动。`docker-compose.yml` 保留为可选部署方案，不是必须项。
 
 ## 5.1 环境准备
 
@@ -169,13 +173,18 @@ export ASSISTANT_MODEL=gpt-4o-mini
 
 - `POST /api/v1/auth/login`
 - `POST /api/v1/upload_ct`
+- `GET /api/v1/studies/{study_id}/preview`
+- `GET /api/v1/studies/{study_id}/preview_overlay`
 - `POST /api/v1/ai/predict/{study_id}`
 - `GET /api/v1/ai/jobs/{job_id}`
 - `GET /api/v1/doctor/patients`
 - `GET /api/v1/doctor/reports`
 - `GET /api/v1/doctor/followups`
+- `GET /api/v1/doctor/patients/{patient_id}/messages`
+- `POST /api/v1/doctor/patients/{patient_id}/messages`
 - `POST /api/v1/doctor/studies/{study_id}/publish_report`
 - `GET /api/v1/patient/reports?patient_id={patient_id}`
+- `GET /api/v1/patient/messages?patient_id={patient_id}`
 - `GET /api/v1/patient/report/{report_id}`
 - `POST /api/v1/chat/assistant`
 
@@ -184,8 +193,9 @@ export ASSISTANT_MODEL=gpt-4o-mini
 1. 医生账号登录前端。
 2. 进入医生工作台，输入后端可访问的 CT 绝对路径。
 3. 触发 AI 推理，等待 `SUCCEEDED`。
-4. 签发报告，前端跳转患者页并携带 `report_id`。
-5. 患者页可读取报告并通过聊天框请求 `/api/v1/chat/assistant`。
+4. 签发报告，保留在医生工作台，并记录返回的 `report_id`。
+5. 医生可向该患者发送消息，患者端 `Messages` 页面可见。
+6. 患者页可读取报告并通过聊天框请求 `/api/v1/chat/assistant`。
 
 ## 10. 已知限制
 
