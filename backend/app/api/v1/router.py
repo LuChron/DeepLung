@@ -2,6 +2,7 @@
 
 from app.api.v1.endpoints.ai import router as ai_router
 from app.api.v1.endpoints.auth import router as auth_router
+from app.api.v1.endpoints.chat import router as chat_router
 from app.api.v1.endpoints.doctor import router as doctor_router
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.patient import router as patient_router
@@ -15,3 +16,4 @@ api_router.include_router(upload_router)
 api_router.include_router(doctor_router)
 api_router.include_router(ai_router)
 api_router.include_router(patient_router)
+api_router.include_router(chat_router)

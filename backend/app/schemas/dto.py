@@ -74,3 +74,22 @@ class PublishReportRequest(BaseModel):
     impression: str
     recommendation: str
     risk_level: Literal['LOW', 'MEDIUM', 'HIGH']
+
+
+class ChatHistoryItem(BaseModel):
+    role: Literal['user', 'assistant']
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class AssistantChatRequest(BaseModel):
+    patient_id: str | None = None
+    report_id: str | None = None
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[ChatHistoryItem] = Field(default_factory=list)
+
+
+class AssistantChatResponse(BaseModel):
+    reply: str
+    provider_used: Literal['mock', 'external']
+    model: str
+    note: str | None = None

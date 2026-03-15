@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Layout,
@@ -13,6 +13,7 @@ import {
   Statistic,
   Input,
   Divider,
+  message,
 } from 'antd';
 import {
   HomeOutlined,
@@ -27,7 +28,10 @@ import {
   ExperimentOutlined,
   SendOutlined,
   FolderOpenOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
+import { listDoctorPatients, type PatientTriageItem } from '../services/api';
+import { clearSession, getUsername } from '../services/session';
 
 const { Header, Sider, Content } = Layout;
 const { Search } = Input;
@@ -36,128 +40,92 @@ interface PatientRecord {
   key: string;
   id: string;
   name: string;
-  age: number;
-  gender: string;
   lastVisit: string;
   aiSummary: string;
   status: 'awaiting-ct' | 'ai-analyzed' | 'report-sent' | 'follow-up';
   riskLevel: 'low' | 'medium' | 'high';
+  rawRiskScore: number;
+  largestNoduleMm: number;
 }
 
-const patientData: PatientRecord[] = [
-  {
-    key: '1',
-    id: 'PT-2024-00123',
-    name: 'John Smith',
-    age: 58,
-    gender: 'Male',
-    lastVisit: 'March 15, 2026',
-    aiSummary: 'Heavy smoker, 8.5mm nodule detected in right upper lobe',
-    status: 'ai-analyzed',
-    riskLevel: 'low',
-  },
-  {
-    key: '2',
-    id: 'PT-2024-00124',
-    name: 'Mary Johnson',
-    age: 62,
-    gender: 'Female',
-    lastVisit: 'March 14, 2026',
-    aiSummary: 'Former smoker, multiple small nodules <5mm bilateral',
-    status: 'report-sent',
-    riskLevel: 'low',
-  },
-  {
-    key: '3',
-    id: 'PT-2024-00125',
-    name: 'Robert Chen',
-    age: 71,
-    gender: 'Male',
-    lastVisit: 'March 13, 2026',
-    aiSummary: '12mm spiculated nodule left lower lobe, requires urgent review',
-    status: 'ai-analyzed',
-    riskLevel: 'high',
-  },
-  {
-    key: '4',
-    id: 'PT-2024-00126',
-    name: 'Sarah Williams',
-    age: 45,
-    gender: 'Female',
-    lastVisit: 'March 12, 2026',
-    aiSummary: 'Non-smoker, incidental 6mm ground-glass opacity',
-    status: 'awaiting-ct',
-    riskLevel: 'low',
-  },
-  {
-    key: '5',
-    id: 'PT-2024-00127',
-    name: 'Michael Brown',
-    age: 67,
-    gender: 'Male',
-    lastVisit: 'March 11, 2026',
-    aiSummary: 'COPD patient, stable 9mm nodule unchanged from 2025',
-    status: 'follow-up',
-    riskLevel: 'medium',
-  },
-  {
-    key: '6',
-    id: 'PT-2024-00128',
-    name: 'Linda Garcia',
-    age: 53,
-    gender: 'Female',
-    lastVisit: 'March 10, 2026',
-    aiSummary: 'Family history lung cancer, no nodules detected',
-    status: 'report-sent',
-    riskLevel: 'low',
-  },
-  {
-    key: '7',
-    id: 'PT-2024-00129',
-    name: 'James Wilson',
-    age: 69,
-    gender: 'Male',
-    lastVisit: 'March 9, 2026',
-    aiSummary: 'Current smoker, 7.2mm solid nodule right middle lobe',
-    status: 'ai-analyzed',
-    riskLevel: 'medium',
-  },
-  {
-    key: '8',
-    id: 'PT-2024-00130',
-    name: 'Patricia Martinez',
-    age: 56,
-    gender: 'Female',
-    lastVisit: 'March 8, 2026',
-    aiSummary: 'Post-treatment surveillance, no new findings',
-    status: 'report-sent',
-    riskLevel: 'low',
-  },
-];
+function mapStatus(reportStatus: PatientTriageItem['report_status']): PatientRecord['status'] {
+  if (reportStatus === 'PUBLISHED') {
+    return 'report-sent';
+  }
+  if (reportStatus === 'DRAFT') {
+    return 'ai-analyzed';
+  }
+  return 'awaiting-ct';
+}
+
+function mapRiskLevel(riskLevel: PatientTriageItem['latest_risk_level']): PatientRecord['riskLevel'] {
+  if (riskLevel === 'HIGH') {
+    return 'high';
+  }
+  if (riskLevel === 'MEDIUM') {
+    return 'medium';
+  }
+  return 'low';
+}
+
+function toPatientRecord(item: PatientTriageItem): PatientRecord {
+  return {
+    key: item.patient_id,
+    id: item.patient_id,
+    name: item.name_masked,
+    lastVisit: new Date().toLocaleDateString('zh-CN'),
+    aiSummary: `风险分值 ${item.latest_risk_score.toFixed(2)}，最大结节 ${item.largest_nodule_mm.toFixed(1)} mm`,
+    status: mapStatus(item.report_status),
+    riskLevel: mapRiskLevel(item.latest_risk_level),
+    rawRiskScore: item.latest_risk_score,
+    largestNoduleMm: item.largest_nodule_mm,
+  };
+}
 
 export function DoctorDashboard() {
   const navigate = useNavigate();
   const [selectedMenu, setSelectedMenu] = useState('patients');
   const [searchText, setSearchText] = useState('');
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const getStatusTag = (status: string) => {
+  const doctorName = useMemo(() => getUsername() || 'doctor-demo', []);
+
+  const fetchPatients = async () => {
+    setLoading(true);
+    try {
+      const data = await listDoctorPatients();
+      setPatients(data.map(toPatientRecord));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '加载患者列表失败';
+      message.error(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchPatients();
+  }, []);
+
+  const getStatusTag = (status: PatientRecord['status']) => {
     const statusMap = {
       'awaiting-ct': { color: 'orange', text: 'Awaiting CT' },
       'ai-analyzed': { color: 'blue', text: 'AI Analyzed' },
       'report-sent': { color: 'green', text: 'Report Sent' },
       'follow-up': { color: 'purple', text: 'Follow-up' },
     };
-    const statusInfo = statusMap[status as keyof typeof statusMap];
+    const statusInfo = statusMap[status];
     return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
   };
 
-  const getRiskTag = (risk: string) => {
+  const getRiskTag = (risk: PatientRecord['riskLevel']) => {
     const riskMap = {
       low: { color: 'green', text: 'Low Risk' },
       medium: { color: 'orange', text: 'Medium Risk' },
       high: { color: 'red', text: 'High Risk' },
     };
-    const riskInfo = riskMap[risk as keyof typeof riskMap];
+    const riskInfo = riskMap[risk];
     return <Tag color={riskInfo.color}>{riskInfo.text}</Tag>;
   };
 
@@ -178,9 +146,7 @@ export function DoctorDashboard() {
           <Avatar icon={<UserOutlined />} className="bg-cyan-500" />
           <div>
             <div>{text}</div>
-            <div className="text-xs text-gray-500">
-              {record.age}y, {record.gender}
-            </div>
+            <div className="text-xs text-gray-500">风险分值：{record.rawRiskScore.toFixed(2)}</div>
           </div>
         </Space>
       ),
@@ -207,17 +173,17 @@ export function DoctorDashboard() {
       dataIndex: 'status',
       key: 'status',
       width: 140,
-      render: (status: string) => getStatusTag(status),
+      render: (status: PatientRecord['status']) => getStatusTag(status),
     },
     {
       title: 'Action',
       key: 'action',
       width: 180,
-      render: (_: any, record: PatientRecord) => (
+      render: (_: unknown, record: PatientRecord) => (
         <Button
           type="primary"
           icon={<FolderOpenOutlined />}
-          onClick={() => navigate(`/doctor-workspace?patientId=${record.id}`)}
+          onClick={() => navigate(`/doctor-workspace?patientId=${encodeURIComponent(record.id)}`)}
         >
           Open Workspace
         </Button>
@@ -225,18 +191,17 @@ export function DoctorDashboard() {
     },
   ];
 
-  const filteredData = patientData.filter((patient) =>
+  const filteredData = patients.filter((patient) =>
     patient.name.toLowerCase().includes(searchText.toLowerCase()) ||
     patient.id.toLowerCase().includes(searchText.toLowerCase()) ||
     patient.aiSummary.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  const aiAnalyzedCount = patientData.filter((p) => p.status === 'ai-analyzed').length;
-  const reportsSentCount = patientData.filter((p) => p.status === 'report-sent').length;
+  const aiAnalyzedCount = patients.filter((p) => p.status === 'ai-analyzed').length;
+  const reportsSentCount = patients.filter((p) => p.status === 'report-sent').length;
 
   return (
     <Layout className="min-h-screen">
-      {/* Left Sidebar */}
       <Sider width={260} className="bg-white shadow-lg">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-8">
@@ -293,12 +258,15 @@ export function DoctorDashboard() {
           <Card size="small" className="bg-gradient-to-br from-cyan-50 to-teal-50 border-cyan-200">
             <div className="text-center">
               <Avatar size={64} icon={<UserOutlined />} className="bg-cyan-500 mb-2" />
-              <p className="m-0">Dr. Sarah Johnson</p>
+              <p className="m-0">{doctorName}</p>
               <p className="text-xs text-gray-500 m-0">Pulmonology</p>
               <Button
                 size="small"
                 icon={<LogoutOutlined />}
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  clearSession();
+                  navigate('/');
+                }}
                 className="mt-3"
                 block
               >
@@ -310,7 +278,6 @@ export function DoctorDashboard() {
       </Sider>
 
       <Layout>
-        {/* Header */}
         <Header className="bg-white shadow-sm px-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl m-0">Patient Directory</h1>
@@ -320,13 +287,12 @@ export function DoctorDashboard() {
             <Badge count={5} offset={[-5, 5]}>
               <Avatar size="large" icon={<UserOutlined />} className="bg-cyan-500" />
             </Badge>
-            <span className="text-base">Dr. Sarah Johnson</span>
+            <span className="text-base">{doctorName}</span>
           </Space>
         </Header>
 
         <Content className="p-6 bg-gray-50">
           <div className="max-w-[1600px] mx-auto space-y-6">
-            {/* Summary Metric Cards */}
             <div className="grid grid-cols-3 gap-6">
               <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
                 <Statistic
@@ -336,11 +302,9 @@ export function DoctorDashboard() {
                       <span>Total Patients</span>
                     </div>
                   }
-                  value={patientData.length}
+                  value={patients.length}
                   valueStyle={{ color: '#1e40af', fontSize: '36px' }}
-                  suffix={
-                    <span className="text-sm text-gray-500">active cases</span>
-                  }
+                  suffix={<span className="text-sm text-gray-500">active cases</span>}
                 />
               </Card>
 
@@ -354,9 +318,7 @@ export function DoctorDashboard() {
                   }
                   value={aiAnalyzedCount}
                   valueStyle={{ color: '#ea580c', fontSize: '36px' }}
-                  suffix={
-                    <span className="text-sm text-gray-500">awaiting review</span>
-                  }
+                  suffix={<span className="text-sm text-gray-500">awaiting review</span>}
                 />
               </Card>
 
@@ -370,14 +332,11 @@ export function DoctorDashboard() {
                   }
                   value={reportsSentCount}
                   valueStyle={{ color: '#16a34a', fontSize: '36px' }}
-                  suffix={
-                    <span className="text-sm text-gray-500">this month</span>
-                  }
+                  suffix={<span className="text-sm text-gray-500">this month</span>}
                 />
               </Card>
             </div>
 
-            {/* Patient Directory Table */}
             <Card
               title={
                 <div className="flex items-center justify-between">
@@ -396,16 +355,15 @@ export function DoctorDashboard() {
               }
               className="shadow-sm"
               extra={
-                <Space>
-                  <Button type="primary" icon={<UserOutlined />}>
-                    Add Patient
-                  </Button>
-                </Space>
+                <Button type="default" icon={<ReloadOutlined />} loading={loading} onClick={() => void fetchPatients()}>
+                  Refresh
+                </Button>
               }
             >
               <Table
                 columns={columns}
                 dataSource={filteredData}
+                loading={loading}
                 pagination={{
                   pageSize: 10,
                   showSizeChanger: true,

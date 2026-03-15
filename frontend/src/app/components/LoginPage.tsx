@@ -1,18 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Card, Input, Button, Segmented, Form } from 'antd';
+import { Card, Input, Button, Segmented, Form, message } from 'antd';
 import { UserOutlined, LockOutlined, MedicineBoxOutlined, TeamOutlined } from '@ant-design/icons';
+import { login } from '../services/api';
+import { saveSession } from '../services/session';
 
 export function LoginPage() {
   const [loginType, setLoginType] = useState<string | number>('doctor');
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const [form] = Form.useForm();
 
-  const handleLogin = () => {
-    if (loginType === 'doctor') {
-      navigate('/doctor-dashboard');
-    } else {
-      navigate('/patient-dashboard');
+  const handleLogin = async (values: { id: string; password: string }) => {
+    setSubmitting(true);
+    try {
+      const username = values.id.trim();
+      const result = await login(username, values.password);
+      saveSession(result.access_token, result.role, username);
+
+      if (result.role === 'patient') {
+        navigate(`/patient-dashboard?patientId=${encodeURIComponent(username)}`);
+      } else {
+        navigate('/doctor-dashboard');
+      }
+      message.success('登录成功');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '登录失败';
+      message.error(detail);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -107,6 +123,7 @@ export function LoginPage() {
               size="large"
               block
               className="h-12 text-lg"
+              loading={submitting}
             >
               Sign In
             </Button>

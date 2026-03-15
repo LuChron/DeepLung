@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+﻿from fastapi import APIRouter, HTTPException
 
 from app.schemas.common import APIResponse
 from app.schemas.dto import PatientTriageItem, PublishReportRequest
@@ -18,10 +18,14 @@ def list_doctor_patients(sort: str = 'risk_level') -> APIResponse[list[PatientTr
 
 @router.post('/studies/{study_id}/publish_report', response_model=APIResponse[dict])
 def publish_report(study_id: str, payload: PublishReportRequest) -> APIResponse[dict]:
-    return APIResponse(
-        data={
-            'study_id': study_id,
-            'status': 'PUBLISHED',
-            'risk_level': payload.risk_level,
-        }
-    )
+    try:
+        result = store.publish_report(
+            study_id=study_id,
+            impression=payload.impression,
+            recommendation=payload.recommendation,
+            risk_level=payload.risk_level,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return APIResponse(data=result)

@@ -24,7 +24,7 @@ async def run_predict_job(job_id: str, study_id: str, object_key: str) -> None:
 
 @router.post('/predict/{study_id}', response_model=APIResponse[TriggerPredictResponse])
 def trigger_predict(study_id: str, background_tasks: BackgroundTasks) -> APIResponse[TriggerPredictResponse]:
-    study = store.studies.get(study_id)
+    study = store.get_study(study_id)
     if not study:
         raise HTTPException(status_code=404, detail='study not found')
 
