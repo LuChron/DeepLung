@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { UploadProps } from 'antd';
 import {
@@ -29,12 +29,15 @@ import {
   HomeOutlined,
 } from '@ant-design/icons';
 import {
+  fetchStudyPreview,
+  fetchStudyPreviewOverlay,
   getPredictJob,
   publishReport,
   triggerPredict,
   uploadCT,
   type JobStatusResponse,
   type PredictNodule,
+  type StudyPreviewPoint,
 } from '../services/api';
 import { clearSession, getUsername } from '../services/session';
 
@@ -109,6 +112,9 @@ export function DoctorWorkspace() {
   const [latestJob, setLatestJob] = useState<JobStatusResponse | null>(null);
   const [studyId, setStudyId] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [overlayPoints, setOverlayPoints] = useState<StudyPreviewPoint[]>([]);
   const [reportText, setReportText] = useState(`DIAGNOSTIC REPORT - LUNG CT SCAN ANALYSIS
 
 Patient ID: ${patientId}
@@ -119,6 +125,42 @@ Patient ID: ${patientId}
   const detectionScore = latestJob?.nodules?.length
     ? Math.max(...latestJob.nodules.map((n) => Number(n.detection_score || 0)))
     : 0;
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  const loadStudyPreview = async (targetStudyId: string, targetJobId?: string | null) => {
+    setPreviewLoading(true);
+    try {
+      const [blob, overlay] = await Promise.all([
+        fetchStudyPreview(targetStudyId, targetJobId),
+        fetchStudyPreviewOverlay(targetStudyId, targetJobId).catch(() => ({
+          study_id: targetStudyId,
+          job_id: targetJobId || null,
+          points: [],
+        })),
+      ]);
+      const nextUrl = URL.createObjectURL(blob);
+      setPreviewUrl((prev) => {
+        if (prev) {
+          URL.revokeObjectURL(prev);
+        }
+        return nextUrl;
+      });
+      setOverlayPoints(overlay.points);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'CT 预览加载失败';
+      message.warning(`CT 预览加载失败：${detail}`);
+      setOverlayPoints([]);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const handleAutoGenerate = () => {
     if (!latestJob || latestJob.status !== 'SUCCEEDED') {
@@ -152,6 +194,7 @@ Patient ID: ${patientId}
     try {
       const uploaded = await uploadCT(patientId, path, path.length);
       setStudyId(uploaded.study_id);
+      await loadStudyPreview(uploaded.study_id, null);
 
       const predictTask = await triggerPredict(uploaded.study_id);
       setJobId(predictTask.job_id);
@@ -160,6 +203,7 @@ Patient ID: ${patientId}
       const doneJob = await pollJobUntilDone(predictTask.job_id);
 
       if (doneJob.status === 'SUCCEEDED') {
+        await loadStudyPreview(uploaded.study_id, doneJob.job_id);
         setReportText(generateReport(patientId, doneJob));
         message.success('AI 推理完成');
       } else {
@@ -342,27 +386,47 @@ Patient ID: ${patientId}
               className="shadow-sm"
             >
               <div className="relative bg-black rounded-lg overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1581595219145-01060b2eb27d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtZWRpY2FsJTIwQ1QlMjBzY2FuJTIwbHVuZ3xlbnwxfHx8fDE3NzM1NzI3NDh8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                  alt="Lung CT Scan"
-                  className="w-full h-auto"
-                />
-                {maxNodule && (
-                  <div
-                    className="absolute border-4 border-red-500 rounded-lg"
-                    style={{
-                      top: '28%',
-                      right: '35%',
-                      width: '120px',
-                      height: '120px',
-                      boxShadow: '0 0 20px rgba(239, 68, 68, 0.6)',
-                    }}
-                  >
-                    <div className="absolute -top-8 left-0 bg-red-500 text-white px-3 py-1 rounded text-sm whitespace-nowrap">
-                      Nodule Detected
+                <div className="relative h-[360px] bg-black flex items-center justify-center">
+                  <div className="relative h-full aspect-square max-w-full bg-black">
+                    {previewUrl ? (
+                      <img src={previewUrl} alt="CT Preview" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+                        <div className="w-full h-full opacity-15 bg-[radial-gradient(circle_at_30%_50%,rgba(148,163,184,0.45),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(148,163,184,0.45),transparent_45%)]" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 pointer-events-none">
+                      {overlayPoints.map((p) => (
+                        <div
+                          key={p.index}
+                          className="absolute rounded-full border-2 border-red-400 bg-red-500/25"
+                          style={{
+                            left: `${(p.left_ratio * 100).toFixed(2)}%`,
+                            top: `${(p.top_ratio * 100).toFixed(2)}%`,
+                            width: `${p.size_px}px`,
+                            height: `${p.size_px}px`,
+                            transform: 'translate(-50%, -50%)',
+                            boxShadow: '0 0 18px rgba(248, 113, 113, 0.7)',
+                          }}
+                          title={`nodule-${p.index}: ${(p.score * 100).toFixed(1)}%, ${p.diameter_mm.toFixed(2)}mm`}
+                        >
+                          <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-red-500 text-white px-2 py-0.5 rounded text-[11px] whitespace-nowrap">
+                            N{p.index} {(p.score * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
+                  <div className="absolute bottom-3 left-3 right-3 text-xs text-slate-200 bg-black/45 rounded px-3 py-2">
+                    {previewLoading
+                      ? '正在加载 CT 预览...'
+                      : latestJob
+                      ? `Study ${latestJob.study_id} | Job ${latestJob.job_id} | Updated ${new Date(latestJob.updated_at).toLocaleString('zh-CN')}`
+                      : studyId
+                      ? `Study ${studyId} 已上传，等待推理结果。`
+                      : '请先上传 CT，系统会显示真实切片预览。'}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4 mt-6">

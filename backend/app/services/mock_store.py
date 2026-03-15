@@ -98,6 +98,47 @@ class PersistentStore:
                 for x in rows
             ]
 
+    def list_reports(self, patient_id: str | None = None) -> list[dict]:
+        with SessionLocal() as db:
+            stmt = select(Report).order_by(desc(Report.created_at))
+            if patient_id:
+                stmt = stmt.where(Report.patient_id == patient_id)
+            rows = db.execute(stmt).scalars().all()
+            return [
+                {
+                    'report_id': r.report_id,
+                    'patient_id': r.patient_id,
+                    'study_id': r.study_id,
+                    'risk_light': r.risk_light,
+                    'summary': r.summary,
+                    'followup_due_at': r.followup_due_at,
+                    'created_at': r.created_at,
+                }
+                for r in rows
+            ]
+
+    def list_followups(self, days: int = 365) -> list[dict]:
+        horizon = date.today() + timedelta(days=max(1, days))
+        with SessionLocal() as db:
+            stmt = (
+                select(Report)
+                .where(Report.followup_due_at.is_not(None))
+                .where(Report.followup_due_at <= horizon)
+                .order_by(Report.followup_due_at)
+            )
+            rows = db.execute(stmt).scalars().all()
+            return [
+                {
+                    'report_id': r.report_id,
+                    'patient_id': r.patient_id,
+                    'followup_due_at': r.followup_due_at,
+                    'risk_light': r.risk_light,
+                    'summary': r.summary,
+                }
+                for r in rows
+                if r.followup_due_at is not None
+            ]
+
     def create_job(self, study_id: str) -> JobRecord:
         job_id = f"J{uuid4().hex[:12].upper()}"
         updated_at = datetime.now()

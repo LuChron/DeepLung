@@ -172,7 +172,10 @@ export ASSISTANT_MODEL=gpt-4o-mini
 - `POST /api/v1/ai/predict/{study_id}`
 - `GET /api/v1/ai/jobs/{job_id}`
 - `GET /api/v1/doctor/patients`
+- `GET /api/v1/doctor/reports`
+- `GET /api/v1/doctor/followups`
 - `POST /api/v1/doctor/studies/{study_id}/publish_report`
+- `GET /api/v1/patient/reports?patient_id={patient_id}`
 - `GET /api/v1/patient/report/{report_id}`
 - `POST /api/v1/chat/assistant`
 
@@ -189,4 +192,3 @@ export ASSISTANT_MODEL=gpt-4o-mini
 - 当前 `upload_ct` 是“路径入参”模式，不是二进制文件上传。
 - MONAI 输入需为可读影像文件（nii/nii.gz/mhd/mha/dcm）。
 - 患者对话当前默认是 `mock` provider，外接 API 需自行填密钥。
-

@@ -1,11 +1,17 @@
-﻿from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from app.schemas.common import APIResponse
-from app.schemas.dto import PatientReportResponse
+from app.schemas.dto import PatientReportListItem, PatientReportResponse
 from app.services.mock_store import store
 
 
 router = APIRouter(prefix='/patient', tags=['patient'])
+
+
+@router.get('/reports', response_model=APIResponse[list[PatientReportListItem]])
+def list_patient_reports(patient_id: str) -> APIResponse[list[PatientReportListItem]]:
+    rows = [PatientReportListItem(**x) for x in store.list_reports(patient_id=patient_id)]
+    return APIResponse(data=rows)
 
 
 @router.get('/report/{report_id}', response_model=APIResponse[PatientReportResponse])

@@ -27,6 +27,21 @@ class UploadCTResponse(BaseModel):
     status: Literal['UPLOADING', 'READY', 'INFER_PENDING']
 
 
+class StudyPreviewPoint(BaseModel):
+    index: int
+    left_ratio: float
+    top_ratio: float
+    size_px: float
+    score: float
+    diameter_mm: float
+
+
+class StudyPreviewOverlayResponse(BaseModel):
+    study_id: str
+    job_id: str | None = None
+    points: list[StudyPreviewPoint] = Field(default_factory=list)
+
+
 class PatientTriageItem(BaseModel):
     patient_id: str
     name_masked: str
@@ -70,10 +85,37 @@ class PatientReportResponse(BaseModel):
     followup_due_at: date | None = None
 
 
+class PatientReportListItem(BaseModel):
+    report_id: str
+    patient_id: str
+    risk_light: Literal['GREEN', 'YELLOW', 'RED']
+    summary: str
+    followup_due_at: date | None = None
+    created_at: datetime
+
+
 class PublishReportRequest(BaseModel):
     impression: str
     recommendation: str
     risk_level: Literal['LOW', 'MEDIUM', 'HIGH']
+
+
+class DoctorReportItem(BaseModel):
+    report_id: str
+    patient_id: str
+    study_id: str | None = None
+    risk_light: Literal['GREEN', 'YELLOW', 'RED']
+    summary: str
+    followup_due_at: date | None = None
+    created_at: datetime
+
+
+class FollowupItem(BaseModel):
+    report_id: str
+    patient_id: str
+    followup_due_at: date
+    risk_light: Literal['GREEN', 'YELLOW', 'RED']
+    summary: str
 
 
 class ChatHistoryItem(BaseModel):

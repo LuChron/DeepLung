@@ -24,6 +24,24 @@ export type PatientTriageItem = {
   report_status: 'DRAFT' | 'PUBLISHED' | 'NONE';
 };
 
+export type DoctorReportItem = {
+  report_id: string;
+  patient_id: string;
+  study_id: string | null;
+  risk_light: 'GREEN' | 'YELLOW' | 'RED';
+  summary: string;
+  followup_due_at: string | null;
+  created_at: string;
+};
+
+export type FollowupItem = {
+  report_id: string;
+  patient_id: string;
+  followup_due_at: string;
+  risk_light: 'GREEN' | 'YELLOW' | 'RED';
+  summary: string;
+};
+
 export type UploadCTResponse = {
   study_id: string;
   object_key: string;
@@ -33,6 +51,21 @@ export type UploadCTResponse = {
 export type TriggerPredictResponse = {
   job_id: string;
   status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+};
+
+export type StudyPreviewPoint = {
+  index: number;
+  left_ratio: number;
+  top_ratio: number;
+  size_px: number;
+  score: number;
+  diameter_mm: number;
+};
+
+export type StudyPreviewOverlayResponse = {
+  study_id: string;
+  job_id: string | null;
+  points: StudyPreviewPoint[];
 };
 
 export type PredictNodule = {
@@ -73,6 +106,15 @@ export type PatientReportResponse = {
   recommendation: string;
   nodules: PatientReportNodule[];
   followup_due_at: string | null;
+};
+
+export type PatientReportListItem = {
+  report_id: string;
+  patient_id: string;
+  risk_light: 'GREEN' | 'YELLOW' | 'RED';
+  summary: string;
+  followup_due_at: string | null;
+  created_at: string;
 };
 
 export type PublishReportResponse = {
@@ -146,6 +188,15 @@ export function listDoctorPatients(): Promise<PatientTriageItem[]> {
   return requestApi<PatientTriageItem[]>('/api/v1/doctor/patients?sort=risk_level');
 }
 
+export function listDoctorReports(patientId?: string): Promise<DoctorReportItem[]> {
+  const query = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : '';
+  return requestApi<DoctorReportItem[]>(`/api/v1/doctor/reports${query}`);
+}
+
+export function listDoctorFollowups(days = 365): Promise<FollowupItem[]> {
+  return requestApi<FollowupItem[]>(`/api/v1/doctor/followups?days=${days}`);
+}
+
 export function uploadCT(patientId: string, fileName: string, fileSize: number): Promise<UploadCTResponse> {
   return requestApi<UploadCTResponse>('/api/v1/upload_ct', {
     method: 'POST',
@@ -184,6 +235,35 @@ export function publishReport(
 
 export function getPatientReport(reportId: string): Promise<PatientReportResponse> {
   return requestApi<PatientReportResponse>(`/api/v1/patient/report/${encodeURIComponent(reportId)}`);
+}
+
+export function listPatientReports(patientId: string): Promise<PatientReportListItem[]> {
+  return requestApi<PatientReportListItem[]>(`/api/v1/patient/reports?patient_id=${encodeURIComponent(patientId)}`);
+}
+
+export async function fetchStudyPreview(studyId: string, jobId?: string | null): Promise<Blob> {
+  const token = getAccessToken();
+  const headers = new Headers();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const query = jobId ? `?job_id=${encodeURIComponent(jobId)}` : '';
+  const resp = await fetch(`${BACKEND_BASE_URL}/api/v1/studies/${encodeURIComponent(studyId)}/preview${query}`, {
+    headers,
+    cache: 'no-store',
+  });
+
+  if (!resp.ok) {
+    const detail = await resp.text();
+    throw new Error(detail || `preview request failed: ${resp.status}`);
+  }
+  return resp.blob();
+}
+
+export function fetchStudyPreviewOverlay(studyId: string, jobId?: string | null): Promise<StudyPreviewOverlayResponse> {
+  const query = jobId ? `?job_id=${encodeURIComponent(jobId)}` : '';
+  return requestApi<StudyPreviewOverlayResponse>(`/api/v1/studies/${encodeURIComponent(studyId)}/preview_overlay${query}`);
 }
 
 export function askAssistant(
