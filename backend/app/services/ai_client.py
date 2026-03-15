@@ -14,7 +14,7 @@ async def run_ai_predict(study_id: str, object_key: str) -> dict[str, Any]:
     ct_path = object_key if Path(object_key).exists() else None
     payload = {'study_id': study_id, 'object_key': object_key, 'ct_path': ct_path}
 
-    async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
+    async with httpx.AsyncClient(timeout=float(settings.ai_engine_timeout_seconds), trust_env=False) as client:
         resp = await client.post(url, json=payload)
         resp.raise_for_status()
         return resp.json()

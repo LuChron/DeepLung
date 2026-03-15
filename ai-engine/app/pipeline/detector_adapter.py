@@ -186,7 +186,16 @@ class MonaiBundleDetector:
             return self._convert_result(raw, runtime=runtime)
 
     def _is_bundle_ready(self) -> bool:
-        return self.infer_config_path.exists() and self.meta_file_path.exists()
+        return (
+            self.infer_config_path.exists()
+            and self.meta_file_path.exists()
+            and self._has_usable_weight_file()
+        )
+
+    def _has_usable_weight_file(self) -> bool:
+        model_dir = self.bundle_dir / 'models'
+        candidates = [model_dir / 'model.pt', model_dir / 'model.ts']
+        return any(_is_usable_weight_file(p) for p in candidates)
 
     def _ensure_bundle(self) -> None:
         if self._is_bundle_ready():
@@ -356,6 +365,22 @@ def _risk_tags(risk_score: float) -> tuple[RiskLevel, str]:
     if risk_score >= 0.4:
         return 'MEDIUM', 'YELLOW'
     return 'LOW', 'GREEN'
+
+
+def _is_usable_weight_file(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+
+    try:
+        # Git LFS pointer files are tiny text files (~100 bytes), not real weights.
+        if path.stat().st_size < 1_000_000:
+            return False
+        with path.open('rb') as f:
+            header = f.read(96)
+    except OSError:
+        return False
+
+    return b'git-lfs.github.com/spec/v1' not in header
 
 
 def _resolve_runtime_device(requested_device: str) -> RuntimeDeviceInfo:

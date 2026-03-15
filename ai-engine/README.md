@@ -37,6 +37,8 @@ FALLBACK_TO_MOCK_ON_ERROR=true
 `MONAI_DEVICE=auto` 时，服务会优先选择 GPU，不可用时自动回退到 CPU。
 CPU 环境下已自动注入 checkpoint `map_location=cpu`，避免 CUDA 序列化权重加载失败。
 
+如果仓库里的 `models/model.pt` 仍是 Git LFS 指针文件（约 100B），服务会自动判定为“未就绪”并触发下载真实权重。
+
 ## 3) 接口
 
 ### 健康检查

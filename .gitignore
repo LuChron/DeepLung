@@ -20,6 +20,7 @@ dist/
 *.mhd
 *.raw
 *.dcm
+ai-engine/models/lung_nodule_ct_detection_hf/
 
 # Logs
 *.log
