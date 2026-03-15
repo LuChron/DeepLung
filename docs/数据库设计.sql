@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS nodules (
     coord_z NUMERIC(10,4) NOT NULL,
     diameter_mm NUMERIC(10,4),
     volume_mm3 NUMERIC(14,4),
-    malignancy_prob NUMERIC(5,4) NOT NULL,
+    detection_score NUMERIC(5,4) NOT NULL,
     bbox_json JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(prediction_id, nodule_index)

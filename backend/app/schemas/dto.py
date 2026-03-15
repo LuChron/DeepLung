@@ -48,19 +48,24 @@ class JobStatusResponse(BaseModel):
     model_version: str
     risk_score: float | None = None
     risk_level: Literal['LOW', 'MEDIUM', 'HIGH'] | None = None
+    summary: str | None = None
+    inference_mode_used: str | None = None
+    note: str | None = None
+    nodules: list[dict] = Field(default_factory=list)
     updated_at: datetime
 
 
 class NoduleItem(BaseModel):
     location: str
     diameter_mm: float
-    malignancy_prob: float
+    detection_score: float
 
 
 class PatientReportResponse(BaseModel):
     report_id: str
     risk_light: Literal['GREEN', 'YELLOW', 'RED']
     summary: str
+    recommendation: str
     nodules: list[NoduleItem]
     followup_due_at: date | None = None
 

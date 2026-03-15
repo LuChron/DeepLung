@@ -74,6 +74,7 @@ export default function App() {
           <section className="card">
             <h2>报告摘要</h2>
             <p className="summary">{report.summary}</p>
+            <p className="followup"><strong>建议：</strong>{report.recommendation}</p>
             <p className="followup">{hint}</p>
           </section>
 
@@ -84,7 +85,7 @@ export default function App() {
                 <article className="item" key={`${n.location}-${i}`}>
                   <h3>{n.location}</h3>
                   <p>直径: {n.diameter_mm.toFixed(1)} mm</p>
-                  <p>恶性概率: {(n.malignancy_prob * 100).toFixed(1)}%</p>
+                  <p>检出置信度: {(n.detection_score * 100).toFixed(1)}%</p>
                 </article>
               ))}
             </div>

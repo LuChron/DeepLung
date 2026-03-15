@@ -34,6 +34,19 @@ export type JobResponse = {
   model_version: string;
   risk_score: number | null;
   risk_level: RiskLevel | null;
+  summary: string | null;
+  inference_mode_used: string | null;
+  note: string | null;
+  nodules: Array<{
+    index: number;
+    coord_x: number;
+    coord_y: number;
+    coord_z: number;
+    diameter_mm: number;
+    volume_mm3: number;
+    detection_score: number;
+    location: string;
+  }>;
   updated_at: string;
 };
 

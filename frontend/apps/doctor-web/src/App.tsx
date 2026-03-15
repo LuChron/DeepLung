@@ -116,8 +116,24 @@ export default function App() {
             <div className="job">
               <div>Job: {job.job_id}</div>
               <div>状态: {job.status}</div>
+              <div>推理模式: {job.inference_mode_used ?? "-"}</div>
+              <div>风险分: {job.risk_score?.toFixed(3) ?? "-"}</div>
               <div>风险等级: {job.risk_level ?? "-"}</div>
               <div>更新时间: {secondsAgo(job.updated_at)} 前</div>
+              {job.summary && <div>摘要: {job.summary}</div>}
+              {job.note && <div>备注: {job.note}</div>}
+              {job.nodules.length > 0 && (
+                <div className="job-nodules">
+                  <strong>检出结果</strong>
+                  {job.nodules.slice(0, 3).map((n) => (
+                    <div key={n.index} className="job-nodule-item">
+                      <span>{n.location}</span>
+                      <span>直径 {n.diameter_mm.toFixed(1)} mm</span>
+                      <span>置信度 {(n.detection_score * 100).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {error && <p className="error">{error}</p>}

@@ -5,7 +5,9 @@ param(
   [string]$DetectorProvider = 'mock',
   [string]$ModelVersion = '',
   [string]$MonaiBundleDir = '',
-  [string]$MonaiAutoDownload = 'false'
+  [string]$MonaiAutoDownload = 'false',
+  [ValidateSet('auto','cpu','cuda')]
+  [string]$MonaiDevice = 'auto'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,7 +39,7 @@ $env:MONAI_BUNDLE_DIR = $MonaiBundleDir
 $env:MONAI_AUTO_DOWNLOAD = $MonaiAutoDownload
 $env:MONAI_INFER_CONFIG_RELPATH = 'configs/inference.json'
 $env:MONAI_META_FILE_RELPATH = 'configs/metadata.json'
-$env:MONAI_DEVICE = 'cpu'
+$env:MONAI_DEVICE = $MonaiDevice
 
 $aiLog = Join-Path $root 'ai-engine.runtime.log'
 $aiErr = Join-Path $root 'ai-engine.runtime.err'
@@ -111,6 +113,7 @@ nib.save(img, r'$tmpCtPath')
     job_id = $jobId
     job_status = $job.data.status
     job_risk = $job.data.risk_level
+    job_score = $job.data.risk_score
     doctor_count = $doctor.data.Count
     patient_report_risk = $patientReport.data.risk_light
   } | ConvertTo-Json -Depth 8

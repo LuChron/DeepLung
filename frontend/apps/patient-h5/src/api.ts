@@ -10,10 +10,11 @@ export type PatientReport = {
   report_id: string;
   risk_light: RiskLight;
   summary: string;
+  recommendation: string;
   nodules: Array<{
     location: string;
     diameter_mm: number;
-    malignancy_prob: number;
+    detection_score: number;
   }>;
   followup_due_at: string | null;
 };

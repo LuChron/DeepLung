@@ -28,6 +28,10 @@ class JobRecord:
     model_version: str
     risk_score: float | None
     risk_level: RiskLevel | None
+    summary: str | None
+    inference_mode_used: str | None
+    note: str | None
+    nodules: list[dict]
     updated_at: datetime
 
 
@@ -39,9 +43,10 @@ class InMemoryStore:
             'R202603090001': {
                 'report_id': 'R202603090001',
                 'risk_light': 'RED',
-                'summary': '发现 1 个高风险结节，建议尽快复查。',
+                'summary': '发现 1 个疑似肺结节，系统建议优先复核并结合医生意见尽快安排复查。',
+                'recommendation': '建议在 3 个月内复查胸部 CT，并由影像科或呼吸科医生结合病史进一步评估。',
                 'nodules': [
-                    {'location': '右肺上叶', 'diameter_mm': 18.3, 'malignancy_prob': 0.84},
+                    {'location': '右肺上叶', 'diameter_mm': 18.3, 'detection_score': 0.84},
                 ],
                 'followup_due_at': date.today() + timedelta(days=90),
             }
@@ -102,6 +107,10 @@ class InMemoryStore:
             model_version='baseline-mock-v1',
             risk_score=None,
             risk_level=None,
+            summary=None,
+            inference_mode_used=None,
+            note=None,
+            nodules=[],
             updated_at=datetime.now(),
         )
         self.jobs[job_id] = record
@@ -112,11 +121,16 @@ class InMemoryStore:
         job.status = 'RUNNING'
         job.updated_at = datetime.now()
 
-    def mark_job_succeeded(self, job_id: str, risk_score: float, risk_level: RiskLevel) -> None:
+    def mark_job_succeeded(self, job_id: str, result: dict) -> None:
         job = self.jobs[job_id]
         job.status = 'SUCCEEDED'
-        job.risk_score = risk_score
-        job.risk_level = risk_level
+        job.model_version = str(result.get('model_version') or job.model_version)
+        job.risk_score = float(result['risk_score'])
+        job.risk_level = result['risk_level']
+        job.summary = result.get('summary')
+        job.inference_mode_used = result.get('inference_mode_used')
+        job.note = result.get('note')
+        job.nodules = list(result.get('nodules') or [])
         job.updated_at = datetime.now()
 
     def mark_job_failed(self, job_id: str) -> None:

@@ -23,12 +23,23 @@ class PredictRequest(BaseModel):
     ct_path: str | None = None
 
 
+class PredictNoduleItem(BaseModel):
+    index: int
+    coord_x: float
+    coord_y: float
+    coord_z: float
+    diameter_mm: float
+    volume_mm3: float
+    detection_score: float
+    location: str
+
+
 class PredictData(BaseModel):
     model_version: str
     risk_score: float
     risk_level: str
     risk_light: str
-    nodules: list[dict]
+    nodules: list[PredictNoduleItem]
     summary: str
     inference_mode_used: str
     note: str | None = None
@@ -49,7 +60,7 @@ adapter = DetectorAdapter(
 
 app = FastAPI(
     title=settings.ai_app_name,
-    version='0.4.0',
+    version='0.5.0',
     docs_url='/docs',
     redoc_url='/redoc',
 )

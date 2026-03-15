@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     monai_auto_download: bool = True
     monai_infer_config_relpath: str = 'configs/inference.json'
     monai_meta_file_relpath: str = 'configs/metadata.json'
-    monai_device: str = 'cpu'  # cpu | cuda
+    monai_device: str = 'auto'  # auto | cpu | cuda
 
 
 @lru_cache

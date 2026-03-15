@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import math
 import subprocess
 import sys
 import tempfile
@@ -21,6 +20,17 @@ class PredictInput:
     ct_path: str | None = None
 
 
+@dataclass
+class RuntimeDeviceInfo:
+    requested_device: str
+    resolved_device: str
+    cuda_available: bool
+    cuda_device_count: int
+    cuda_device_name: str | None
+    torch_version: str | None
+    fallback_reason: str | None = None
+
+
 class MockDetector:
     def __init__(self, model_version: str = 'baseline-mock-v1') -> None:
         self.model_version = model_version
@@ -34,7 +44,9 @@ class MockDetector:
 
     def predict(self, payload: PredictInput, note: str | None = None) -> dict[str, Any]:
         seed = int(hashlib.md5(payload.study_id.encode('utf-8')).hexdigest()[:8], 16)
-        risk_score = (seed % 1000) / 1000.0
+        detection_score = (seed % 1000) / 1000.0
+        size_factor = min((4 + (seed % 320) / 10.0) / 30.0, 1.0)
+        risk_score = max(min(0.75 * detection_score + 0.25 * size_factor, 1.0), 0.0)
         risk_level, risk_light = _risk_tags(risk_score)
 
         base_diameter = round(4 + (seed % 320) / 10.0, 2)
@@ -46,7 +58,7 @@ class MockDetector:
                 'coord_z': round((seed % 400) / 10.0, 2),
                 'diameter_mm': base_diameter,
                 'volume_mm3': round(base_diameter**3 * 0.52, 2),
-                'malignancy_prob': round(min(max(risk_score + 0.08, 0.01), 0.99), 4),
+                'detection_score': round(min(max(detection_score + 0.08, 0.01), 0.99), 4),
                 'location': '肺部',
             }
         ]
@@ -57,7 +69,7 @@ class MockDetector:
             'risk_level': risk_level,
             'risk_light': risk_light,
             'nodules': nodules,
-            'summary': f'检测到 {len(nodules)} 个疑似结节，综合风险 {risk_level}',
+            'summary': f'检测到 {len(nodules)} 个疑似结节，已完成辅助风险分层，当前优先级为 {risk_level}',
             'inference_mode_used': 'mock',
             'note': note or 'using mock detector',
         }
@@ -80,9 +92,10 @@ class MonaiBundleDetector:
         self.auto_download = auto_download
         self.infer_config_path = self.bundle_dir / infer_config_relpath
         self.meta_file_path = self.bundle_dir / meta_file_relpath
-        self.device = device
+        self.requested_device = device
 
     def get_runtime_status(self) -> dict[str, Any]:
+        runtime = _resolve_runtime_device(self.requested_device)
         return {
             'provider': 'monai_bundle',
             'bundle_repo_id': self.bundle_repo_id,
@@ -90,7 +103,13 @@ class MonaiBundleDetector:
             'bundle_ready': self._is_bundle_ready(),
             'inference_config': str(self.infer_config_path),
             'meta_file': str(self.meta_file_path),
-            'device': self.device,
+            'requested_device': runtime.requested_device,
+            'resolved_device': runtime.resolved_device,
+            'cuda_available': runtime.cuda_available,
+            'cuda_device_count': runtime.cuda_device_count,
+            'cuda_device_name': runtime.cuda_device_name,
+            'torch_version': runtime.torch_version,
+            'fallback_reason': runtime.fallback_reason,
         }
 
     def predict(self, payload: PredictInput) -> dict[str, Any]:
@@ -99,6 +118,7 @@ class MonaiBundleDetector:
             raise RuntimeError('ct_path is required for monai_bundle provider')
 
         self._ensure_bundle()
+        runtime = _resolve_runtime_device(self.requested_device)
 
         with tempfile.TemporaryDirectory(prefix='deeplung_monai_') as tmp:
             tmp_dir = Path(tmp)
@@ -107,7 +127,9 @@ class MonaiBundleDetector:
             output_dir.mkdir(parents=True, exist_ok=True)
             output_filename = 'result_0.json'
             raw_luna = ct_path.suffix.lower() in ('.mhd', '.mha', '.raw')
-            runtime_config_path = self._make_runtime_infer_config(tmp_dir, raw_luna=raw_luna)
+            runtime_config_path = self._make_runtime_infer_config(
+                tmp_dir, raw_luna=raw_luna, resolved_device=runtime.resolved_device
+            )
 
             data_list = {'validation': [{'image': str(ct_path)}]}
             data_list_path.write_text(json.dumps(data_list, ensure_ascii=False), encoding='utf-8')
@@ -139,7 +161,7 @@ class MonaiBundleDetector:
                 'false',
             ]
 
-            if self.device == 'cuda':
+            if runtime.resolved_device == 'cuda':
                 cmd += ['--use_cuda', 'true']
             else:
                 cmd += ['--use_cuda', 'false']
@@ -161,7 +183,7 @@ class MonaiBundleDetector:
                 raise RuntimeError(f'inference result not found: {result_path}')
 
             raw = json.loads(result_path.read_text(encoding='utf-8'))
-            return self._convert_result(raw)
+            return self._convert_result(raw, runtime=runtime)
 
     def _is_bundle_ready(self) -> bool:
         return self.infer_config_path.exists() and self.meta_file_path.exists()
@@ -186,7 +208,7 @@ class MonaiBundleDetector:
         if not self._is_bundle_ready():
             raise RuntimeError(f'downloaded bundle is incomplete: {self.bundle_dir}')
 
-    def _make_runtime_infer_config(self, tmp_dir: Path, raw_luna: bool) -> Path:
+    def _make_runtime_infer_config(self, tmp_dir: Path, raw_luna: bool, resolved_device: str) -> Path:
         cfg = json.loads(self.infer_config_path.read_text(encoding='utf-8'))
 
         cfg['whether_raw_luna16'] = bool(raw_luna)
@@ -194,7 +216,7 @@ class MonaiBundleDetector:
 
         # The official bundle checkpoint can be CUDA-serialized. In CPU mode, we must
         # force map_location to avoid torch deserialization errors.
-        if self.device != 'cuda':
+        if resolved_device != 'cuda':
             cfg['device'] = "$torch.device('cpu')"
             if isinstance(cfg.get('checkpointloader'), dict):
                 cfg['checkpointloader']['map_location'] = 'cpu'
@@ -203,7 +225,7 @@ class MonaiBundleDetector:
         out.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding='utf-8')
         return out
 
-    def _convert_result(self, raw: Any) -> dict[str, Any]:
+    def _convert_result(self, raw: Any, runtime: RuntimeDeviceInfo) -> dict[str, Any]:
         if isinstance(raw, dict):
             records = [raw]
         else:
@@ -218,7 +240,7 @@ class MonaiBundleDetector:
                 'nodules': [],
                 'summary': '未检测到疑似结节',
                 'inference_mode_used': 'monai_bundle',
-                'note': 'empty result',
+                'note': runtime.fallback_reason or 'empty result',
             }
 
         first = records[0]
@@ -242,7 +264,7 @@ class MonaiBundleDetector:
                     'coord_z': round(cz, 3),
                     'diameter_mm': round(diameter, 3),
                     'volume_mm3': round(volume, 3),
-                    'malignancy_prob': round(max(min(score, 1.0), 0.0), 4),
+                    'detection_score': round(max(min(score, 1.0), 0.0), 4),
                     'location': '肺部',
                 }
             )
@@ -250,7 +272,7 @@ class MonaiBundleDetector:
         if not nodules:
             risk_score = 0.0
         else:
-            max_prob = max(float(n['malignancy_prob']) for n in nodules)
+            max_prob = max(float(n['detection_score']) for n in nodules)
             max_size = max(float(n['diameter_mm']) for n in nodules)
             size_factor = min(max_size / 30.0, 1.0)
             risk_score = max(min(0.75 * max_prob + 0.25 * size_factor, 1.0), 0.0)
@@ -263,9 +285,9 @@ class MonaiBundleDetector:
             'risk_level': risk_level,
             'risk_light': risk_light,
             'nodules': nodules,
-            'summary': f'检测到 {len(nodules)} 个疑似结节，综合风险 {risk_level}',
+            'summary': f'检测到 {len(nodules)} 个疑似结节，已完成辅助风险分层，当前优先级为 {risk_level}',
             'inference_mode_used': 'monai_bundle',
-            'note': None,
+            'note': runtime.fallback_reason,
         }
 
 
@@ -334,3 +356,49 @@ def _risk_tags(risk_score: float) -> tuple[RiskLevel, str]:
     if risk_score >= 0.4:
         return 'MEDIUM', 'YELLOW'
     return 'LOW', 'GREEN'
+
+
+def _resolve_runtime_device(requested_device: str) -> RuntimeDeviceInfo:
+    requested = (requested_device or 'auto').strip().lower()
+    if requested not in {'auto', 'cpu', 'cuda'}:
+        requested = 'auto'
+
+    torch_version: str | None = None
+    cuda_available = False
+    cuda_device_count = 0
+    cuda_device_name: str | None = None
+    fallback_reason: str | None = None
+
+    try:
+        import torch
+
+        torch_version = torch.__version__
+        cuda_available = bool(torch.cuda.is_available())
+        cuda_device_count = int(torch.cuda.device_count())
+        if cuda_available and cuda_device_count > 0:
+            cuda_device_name = str(torch.cuda.get_device_name(0))
+    except Exception as exc:
+        fallback_reason = f'torch runtime unavailable: {exc}'
+
+    if requested == 'cpu':
+        resolved = 'cpu'
+    elif requested == 'cuda':
+        if cuda_available:
+            resolved = 'cuda'
+        else:
+            resolved = 'cpu'
+            fallback_reason = fallback_reason or 'requested cuda but no CUDA device is available, fallback to cpu'
+    else:
+        resolved = 'cuda' if cuda_available else 'cpu'
+        if resolved == 'cpu' and not fallback_reason:
+            fallback_reason = 'auto device selection resolved to cpu'
+
+    return RuntimeDeviceInfo(
+        requested_device=requested,
+        resolved_device=resolved,
+        cuda_available=cuda_available,
+        cuda_device_count=cuda_device_count,
+        cuda_device_name=cuda_device_name,
+        torch_version=torch_version,
+        fallback_reason=fallback_reason,
+    )

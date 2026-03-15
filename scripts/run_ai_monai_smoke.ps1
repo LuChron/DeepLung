@@ -2,7 +2,9 @@ param(
   [string]$AutoDownload = "true",
   [string]$BundleDir = "",
   [string]$PythonExe = "",
-  [string]$RootDir = ""
+  [string]$RootDir = "",
+  [ValidateSet('auto','cpu','cuda')]
+  [string]$MonaiDevice = 'auto'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,7 +52,7 @@ $env:MONAI_BUNDLE_DIR = $BundleDir
 $env:MONAI_AUTO_DOWNLOAD = $AutoDownload
 $env:MONAI_INFER_CONFIG_RELPATH = 'configs/inference.json'
 $env:MONAI_META_FILE_RELPATH = 'configs/metadata.json'
-$env:MONAI_DEVICE = 'cpu'
+$env:MONAI_DEVICE = $MonaiDevice
 
 $p = Start-Process -FilePath $py -ArgumentList @('-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8100') -WorkingDirectory (Join-Path $root 'ai-engine') -PassThru -RedirectStandardOutput $log -RedirectStandardError $err
 
@@ -80,6 +82,7 @@ try {
     health_runtime = $health.data.runtime
     inference_mode_used = $pred.data.inference_mode_used
     risk_level = $pred.data.risk_level
+    risk_score = $pred.data.risk_score
     note = $pred.data.note
     nodule_count = $pred.data.nodules.Count
   } | ConvertTo-Json -Depth 8

@@ -48,7 +48,7 @@ services:
       MONAI_AUTO_DOWNLOAD: "true"
       MONAI_INFER_CONFIG_RELPATH: configs/inference.json
       MONAI_META_FILE_RELPATH: configs/metadata.json
-      MONAI_DEVICE: cpu
+      MONAI_DEVICE: auto
     ports:
       - "8100:8100"
 

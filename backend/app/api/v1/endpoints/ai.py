@@ -16,9 +16,7 @@ async def run_predict_job(job_id: str, study_id: str, object_key: str) -> None:
     store.mark_job_running(job_id)
     try:
         result = await run_ai_predict(study_id=study_id, object_key=object_key)
-        risk_score = float(result['data']['risk_score'])
-        risk_level = result['data']['risk_level']
-        store.mark_job_succeeded(job_id, risk_score=risk_score, risk_level=risk_level)
+        store.mark_job_succeeded(job_id, result=result['data'])
     except Exception as exc:  # pragma: no cover
         logger.exception('ai predict failed: %s', exc)
         store.mark_job_failed(job_id)
@@ -49,6 +47,10 @@ def get_job(job_id: str) -> APIResponse[JobStatusResponse]:
             model_version=job.model_version,
             risk_score=job.risk_score,
             risk_level=job.risk_level,
+            summary=job.summary,
+            inference_mode_used=job.inference_mode_used,
+            note=job.note,
+            nodules=job.nodules,
             updated_at=job.updated_at,
         )
     )
