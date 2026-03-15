@@ -70,6 +70,14 @@ def _seed_triage_and_reports(db: Session) -> None:
             'largest_nodule_mm': 6.1,
             'report_status': 'PUBLISHED',
         },
+        {
+            'patient_id': 'patient_demo',
+            'name_masked': '患*',
+            'latest_risk_score': 0.05,
+            'latest_risk_level': 'LOW',
+            'largest_nodule_mm': 0.0,
+            'report_status': 'NONE',
+        },
     ]
     for item in triage_seed:
         stmt = select(PatientTriage).where(PatientTriage.patient_id == item['patient_id'])

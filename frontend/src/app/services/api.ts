@@ -34,6 +34,14 @@ export type DoctorReportItem = {
   created_at: string;
 };
 
+export type DoctorPatientMessageItem = {
+  id: number;
+  patient_id: string;
+  doctor_username: string;
+  content: string;
+  created_at: string;
+};
+
 export type FollowupItem = {
   report_id: string;
   patient_id: string;
@@ -197,6 +205,26 @@ export function listDoctorFollowups(days = 365): Promise<FollowupItem[]> {
   return requestApi<FollowupItem[]>(`/api/v1/doctor/followups?days=${days}`);
 }
 
+export function listDoctorPatientMessages(patientId: string, limit = 100): Promise<DoctorPatientMessageItem[]> {
+  return requestApi<DoctorPatientMessageItem[]>(
+    `/api/v1/doctor/patients/${encodeURIComponent(patientId)}/messages?limit=${limit}`
+  );
+}
+
+export function sendDoctorPatientMessage(
+  patientId: string,
+  doctorUsername: string,
+  content: string
+): Promise<DoctorPatientMessageItem> {
+  return requestApi<DoctorPatientMessageItem>(`/api/v1/doctor/patients/${encodeURIComponent(patientId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({
+      doctor_username: doctorUsername,
+      content,
+    }),
+  });
+}
+
 export function uploadCT(patientId: string, fileName: string, fileSize: number): Promise<UploadCTResponse> {
   return requestApi<UploadCTResponse>('/api/v1/upload_ct', {
     method: 'POST',
@@ -221,13 +249,14 @@ export function getPredictJob(jobId: string): Promise<JobStatusResponse> {
 export function publishReport(
   studyId: string,
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH',
-  summary: string
+  impression: string,
+  recommendation?: string
 ): Promise<PublishReportResponse> {
   return requestApi<PublishReportResponse>(`/api/v1/doctor/studies/${encodeURIComponent(studyId)}/publish_report`, {
     method: 'POST',
     body: JSON.stringify({
-      impression: summary,
-      recommendation: summary,
+      impression,
+      recommendation: recommendation ?? impression,
       risk_level: riskLevel,
     }),
   });
@@ -239,6 +268,10 @@ export function getPatientReport(reportId: string): Promise<PatientReportRespons
 
 export function listPatientReports(patientId: string): Promise<PatientReportListItem[]> {
   return requestApi<PatientReportListItem[]>(`/api/v1/patient/reports?patient_id=${encodeURIComponent(patientId)}`);
+}
+
+export function listPatientMessages(patientId: string, limit = 100): Promise<DoctorPatientMessageItem[]> {
+  return requestApi<DoctorPatientMessageItem[]>(`/api/v1/patient/messages?patient_id=${encodeURIComponent(patientId)}&limit=${limit}`);
 }
 
 export async function fetchStudyPreview(studyId: string, jobId?: string | null): Promise<Blob> {

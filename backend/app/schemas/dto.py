@@ -118,6 +118,19 @@ class FollowupItem(BaseModel):
     summary: str
 
 
+class SendDoctorMessageRequest(BaseModel):
+    doctor_username: str = Field(min_length=1, max_length=64)
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class DoctorPatientMessageItem(BaseModel):
+    id: int
+    patient_id: str
+    doctor_username: str
+    content: str
+    created_at: datetime
+
+
 class ChatHistoryItem(BaseModel):
     role: Literal['user', 'assistant']
     text: str = Field(min_length=1, max_length=2000)

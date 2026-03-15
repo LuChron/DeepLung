@@ -8,6 +8,7 @@ import {
   Upload,
   Statistic,
   Input,
+  List,
   message,
   Avatar,
   Badge,
@@ -32,9 +33,12 @@ import {
   fetchStudyPreview,
   fetchStudyPreviewOverlay,
   getPredictJob,
+  listDoctorPatientMessages,
   publishReport,
+  sendDoctorPatientMessage,
   triggerPredict,
   uploadCT,
+  type DoctorPatientMessageItem,
   type JobStatusResponse,
   type PredictNodule,
   type StudyPreviewPoint,
@@ -101,6 +105,26 @@ Inference mode: ${job.inference_mode_used || 'unknown'}
 ${job.note || ''}`;
 }
 
+function extractReportFields(
+  reportText: string,
+  fallbackSummary: string,
+  riskLevel: JobStatusResponse['risk_level']
+): { impression: string; recommendation: string } {
+  const text = (reportText || '').replace(/\r/g, '');
+  const impressionMatch = text.match(/IMPRESSION:\s*([\s\S]*?)(?:\nRECOMMENDATION:|$)/i);
+  const recommendationMatch = text.match(/RECOMMENDATION:\s*([\s\S]*?)(?:\nNOTE:|$)/i);
+
+  const impression = (impressionMatch?.[1] || fallbackSummary || text || 'AI analysis completed.')
+    .trim()
+    .slice(0, 2000);
+
+  const defaultRecommendation =
+    riskLevel === 'HIGH' ? '建议优先复核并尽快安排复查。' : '建议按计划随访复查。';
+  const recommendation = (recommendationMatch?.[1] || defaultRecommendation).trim().slice(0, 2000);
+
+  return { impression, recommendation };
+}
+
 export function DoctorWorkspace() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -115,6 +139,10 @@ export function DoctorWorkspace() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [overlayPoints, setOverlayPoints] = useState<StudyPreviewPoint[]>([]);
+  const [doctorMessages, setDoctorMessages] = useState<DoctorPatientMessageItem[]>([]);
+  const [loadingDoctorMessages, setLoadingDoctorMessages] = useState(false);
+  const [sendingDoctorMessage, setSendingDoctorMessage] = useState(false);
+  const [doctorMessageDraft, setDoctorMessageDraft] = useState('');
   const [reportText, setReportText] = useState(`DIAGNOSTIC REPORT - LUNG CT SCAN ANALYSIS
 
 Patient ID: ${patientId}
@@ -133,6 +161,23 @@ Patient ID: ${patientId}
       }
     };
   }, [previewUrl]);
+
+  const loadDoctorMessages = async () => {
+    setLoadingDoctorMessages(true);
+    try {
+      const rows = await listDoctorPatientMessages(patientId, 100);
+      setDoctorMessages(rows);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '加载医患消息失败';
+      message.error(detail);
+    } finally {
+      setLoadingDoctorMessages(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDoctorMessages();
+  }, [patientId]);
 
   const loadStudyPreview = async (targetStudyId: string, targetJobId?: string | null) => {
     setPreviewLoading(true);
@@ -221,16 +266,39 @@ Patient ID: ${patientId}
     try {
       let reportId = 'R202603090001';
       if (studyId && latestJob?.risk_level) {
-        const published = await publishReport(studyId, latestJob.risk_level, reportText.slice(0, 400));
+        const { impression, recommendation } = extractReportFields(
+          reportText,
+          latestJob.summary || 'AI analysis completed.',
+          latestJob.risk_level
+        );
+        const published = await publishReport(studyId, latestJob.risk_level, impression, recommendation);
         reportId = published.report_id;
       }
-      message.success('报告已签发并发送给患者端');
-      setTimeout(() => {
-        navigate(`/patient-dashboard?patientId=${encodeURIComponent(patientId)}&reportId=${encodeURIComponent(reportId)}`);
-      }, 600);
+      message.success(`报告已签发并发送给患者端（report_id=${reportId}）`);
     } catch (error) {
       const detail = error instanceof Error ? error.message : '报告签发失败';
       message.error(detail);
+    }
+  };
+
+  const handleSendDoctorMessage = async () => {
+    const text = doctorMessageDraft.trim();
+    if (!text) {
+      message.warning('请先输入要发送给患者的消息');
+      return;
+    }
+
+    setSendingDoctorMessage(true);
+    try {
+      const sent = await sendDoctorPatientMessage(patientId, doctorName, text);
+      setDoctorMessages((prev) => [...prev, sent]);
+      setDoctorMessageDraft('');
+      message.success('已发送给患者');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '发送失败';
+      message.error(detail);
+    } finally {
+      setSendingDoctorMessage(false);
     }
   };
 
@@ -516,6 +584,50 @@ Patient ID: ${patientId}
                   仅用于辅助诊断。若任务失败，请检查后端与 AI 引擎日志，确认 CT 路径可被后端访问。
                 </p>
               </div>
+            </Card>
+
+            <Card
+              title="Doctor -> Patient Message"
+              className="shadow-sm"
+              extra={
+                <Button size="small" onClick={() => void loadDoctorMessages()} loading={loadingDoctorMessages}>
+                  Refresh
+                </Button>
+              }
+            >
+              <TextArea
+                value={doctorMessageDraft}
+                onChange={(e) => setDoctorMessageDraft(e.target.value)}
+                rows={3}
+                placeholder={`发送给 ${patientId} 的消息...`}
+              />
+              <Button
+                className="mt-3"
+                type="primary"
+                block
+                icon={<SendOutlined />}
+                loading={sendingDoctorMessage}
+                onClick={() => void handleSendDoctorMessage()}
+              >
+                Send Message
+              </Button>
+
+              <List
+                className="mt-4"
+                loading={loadingDoctorMessages}
+                dataSource={doctorMessages}
+                locale={{ emptyText: '暂无医患消息' }}
+                renderItem={(item) => (
+                  <List.Item>
+                    <div className="w-full">
+                      <div className="text-xs text-gray-500">
+                        {item.doctor_username} · {new Date(item.created_at).toLocaleString('zh-CN')}
+                      </div>
+                      <div className="text-sm mt-1 whitespace-pre-wrap">{item.content}</div>
+                    </div>
+                  </List.Item>
+                )}
+              />
             </Card>
           </div>
         </div>

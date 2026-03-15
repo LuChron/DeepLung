@@ -9,7 +9,7 @@ from uuid import uuid4
 from sqlalchemy import desc, select
 
 from app.db.base import SessionLocal
-from app.db.models import Job, PatientTriage, Report, Study
+from app.db.models import DoctorPatientMessage, Job, PatientTriage, Report, Study
 
 
 RiskLevel = Literal['LOW', 'MEDIUM', 'HIGH']
@@ -138,6 +138,54 @@ class PersistentStore:
                 for r in rows
                 if r.followup_due_at is not None
             ]
+
+    def list_doctor_messages(self, patient_id: str, limit: int = 100) -> list[dict]:
+        with SessionLocal() as db:
+            stmt = (
+                select(DoctorPatientMessage)
+                .where(DoctorPatientMessage.patient_id == patient_id)
+                .order_by(desc(DoctorPatientMessage.created_at))
+                .limit(max(1, min(limit, 500)))
+            )
+            rows = db.execute(stmt).scalars().all()
+            result = [
+                {
+                    'id': x.id,
+                    'patient_id': x.patient_id,
+                    'doctor_username': x.doctor_username,
+                    'content': x.content,
+                    'created_at': x.created_at,
+                }
+                for x in rows
+            ]
+            result.reverse()
+            return result
+
+    def create_doctor_message(self, patient_id: str, doctor_username: str, content: str) -> dict:
+        text = content.strip()
+        if not text:
+            raise ValueError('message is empty')
+
+        now = datetime.now()
+        with SessionLocal.begin() as db:
+            triage = self._get_or_create_triage(db, patient_id)
+            triage.updated_at = now
+
+            row = DoctorPatientMessage(
+                patient_id=patient_id,
+                doctor_username=(doctor_username or 'doctor_demo').strip()[:64] or 'doctor_demo',
+                content=text[:2000],
+                created_at=now,
+            )
+            db.add(row)
+            db.flush()
+            return {
+                'id': row.id,
+                'patient_id': row.patient_id,
+                'doctor_username': row.doctor_username,
+                'content': row.content,
+                'created_at': row.created_at,
+            }
 
     def create_job(self, study_id: str) -> JobRecord:
         job_id = f"J{uuid4().hex[:12].upper()}"

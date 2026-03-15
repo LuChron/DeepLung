@@ -73,3 +73,13 @@ class Report(Base):
     nodules: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
     followup_due_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DoctorPatientMessage(Base):
+    __tablename__ = 'doctor_patient_messages'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    patient_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    doctor_username: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

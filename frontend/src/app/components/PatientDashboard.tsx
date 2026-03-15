@@ -36,7 +36,9 @@ import {
 import {
   askAssistant,
   getPatientReport,
+  listPatientMessages,
   listPatientReports,
+  type DoctorPatientMessageItem,
   type PatientReportListItem,
   type PatientReportResponse,
 } from '../services/api';
@@ -91,6 +93,8 @@ export function PatientDashboard() {
 
   const [reportList, setReportList] = useState<PatientReportListItem[]>([]);
   const [loadingReportList, setLoadingReportList] = useState(false);
+  const [doctorMessages, setDoctorMessages] = useState<DoctorPatientMessageItem[]>([]);
+  const [loadingDoctorMessages, setLoadingDoctorMessages] = useState(false);
 
   const riskTag = useMemo(() => riskLightToTag(report?.risk_light), [report?.risk_light]);
 
@@ -106,7 +110,7 @@ export function PatientDashboard() {
     dashboard: { title: 'Patient Dashboard', desc: '你的最新报告、风险与复查总览' },
     reports: { title: 'My Reports', desc: '查看历史报告与当前报告详情' },
     appointments: { title: 'Follow-up Plan', desc: '查看复查时间与执行建议' },
-    messages: { title: 'AI Messages', desc: '与健康助手进行问答' },
+    messages: { title: 'Messages', desc: '查看医生消息并与健康助手对话' },
   };
 
   const handleSendMessage = async (messageText?: string) => {
@@ -168,12 +172,30 @@ export function PatientDashboard() {
     }
   };
 
+  const loadDoctorMessages = async () => {
+    setLoadingDoctorMessages(true);
+    try {
+      const data = await listPatientMessages(patientId, 100);
+      setDoctorMessages(data);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '医生消息加载失败';
+      message.error(detail);
+      setDoctorMessages([]);
+    } finally {
+      setLoadingDoctorMessages(false);
+    }
+  };
+
   useEffect(() => {
     void loadCurrentReport();
   }, [reportId]);
 
   useEffect(() => {
     void loadReportList();
+  }, [patientId]);
+
+  useEffect(() => {
+    void loadDoctorMessages();
   }, [patientId]);
 
   const downloadCurrentReport = () => {
@@ -278,7 +300,9 @@ export function PatientDashboard() {
             <SafetyOutlined className="text-blue-600" />
             报告摘要
           </h3>
-          <p className="text-base text-gray-700 leading-relaxed m-0">{report?.summary || '暂无摘要数据'}</p>
+          <p className="text-base text-gray-700 leading-relaxed m-0 whitespace-pre-wrap break-words">
+            {report?.summary || '暂无摘要数据'}
+          </p>
         </div>
 
         <Card className="bg-gradient-to-br from-teal-50 to-cyan-50 border-teal-200">
@@ -309,7 +333,7 @@ export function PatientDashboard() {
             <CheckCircleOutlined className="text-green-600" />
             医嘱建议
           </h3>
-          <p className="m-0 text-gray-700">{report?.recommendation || '暂无建议'}</p>
+          <p className="m-0 text-gray-700 whitespace-pre-wrap break-words">{report?.recommendation || '暂无建议'}</p>
         </div>
 
         <Button type="primary" size="large" block icon={<FileTextOutlined />} onClick={downloadCurrentReport}>
@@ -373,56 +397,91 @@ export function PatientDashboard() {
   );
 
   const renderChatPanel = () => (
-    <Card
-      title={
-        <div className="flex items-center gap-2">
-          <RobotOutlined className="text-cyan-600" />
-          <span>AI 健康助手</span>
-        </div>
-      }
-      className="shadow-sm"
-    >
-      <div className="h-80 overflow-y-auto mb-4 space-y-3">
-        {chatMessages.map((msg, idx) => (
-          <div key={idx} className={`flex gap-2 ${msg.type === 'user' ? 'flex-row-reverse' : ''}`}>
-            <Avatar
-              size="small"
-              icon={msg.type === 'ai' ? <RobotOutlined /> : <UserOutlined />}
-              className={msg.type === 'ai' ? 'bg-cyan-500' : 'bg-gray-500'}
-            />
-            <div
-              className={`max-w-[80%] p-3 rounded-lg text-sm ${
-                msg.type === 'ai' ? 'bg-blue-50 text-gray-800' : 'bg-cyan-500 text-white'
-              }`}
-            >
-              {msg.text}
-              {msg.type === 'ai' && msg.meta && <div className="mt-1 text-[10px] opacity-60">{msg.meta}</div>}
+    <div className="space-y-6">
+      <Card
+        title={
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageOutlined className="text-cyan-600" />
+              <span>Doctor Messages</span>
             </div>
           </div>
-        ))}
-      </div>
-
-      <div className="mb-3 grid grid-cols-1 gap-2">
-        {quickReplyButtons.map((btn, idx) => (
-          <Button key={idx} disabled={chatLoading} onClick={() => void handleSendMessage(btn)} className="text-left">
-            {btn}
+        }
+        className="shadow-sm"
+        extra={
+          <Button size="small" onClick={() => void loadDoctorMessages()} loading={loadingDoctorMessages}>
+            Refresh
           </Button>
-        ))}
-      </div>
-
-      <Space.Compact className="w-full">
-        <Input
-          placeholder="输入你的问题..."
-          value={inputMessage}
-          disabled={chatLoading}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onPressEnter={() => void handleSendMessage()}
+        }
+      >
+        <List
+          loading={loadingDoctorMessages}
+          dataSource={doctorMessages}
+          locale={{ emptyText: '暂无医生消息' }}
+          renderItem={(item) => (
+            <List.Item>
+              <div className="w-full">
+                <div className="text-xs text-gray-500">
+                  {item.doctor_username} · {new Date(item.created_at).toLocaleString('zh-CN')}
+                </div>
+                <div className="text-sm mt-1 whitespace-pre-wrap">{item.content}</div>
+              </div>
+            </List.Item>
+          )}
         />
-        <Button type="primary" icon={<SendOutlined />} loading={chatLoading} onClick={() => void handleSendMessage()} />
-      </Space.Compact>
+      </Card>
 
-      <p className="text-xs text-gray-400 mt-2 text-center">AI 内容仅供健康管理参考，不替代医生诊断</p>
-    </Card>
+      <Card
+        title={
+          <div className="flex items-center gap-2">
+            <RobotOutlined className="text-cyan-600" />
+            <span>AI 健康助手</span>
+          </div>
+        }
+        className="shadow-sm"
+      >
+        <div className="h-80 overflow-y-auto mb-4 space-y-3">
+          {chatMessages.map((msg, idx) => (
+            <div key={idx} className={`flex gap-2 ${msg.type === 'user' ? 'flex-row-reverse' : ''}`}>
+              <Avatar
+                size="small"
+                icon={msg.type === 'ai' ? <RobotOutlined /> : <UserOutlined />}
+                className={msg.type === 'ai' ? 'bg-cyan-500' : 'bg-gray-500'}
+              />
+              <div
+                className={`max-w-[80%] p-3 rounded-lg text-sm ${
+                  msg.type === 'ai' ? 'bg-blue-50 text-gray-800' : 'bg-cyan-500 text-white'
+                }`}
+              >
+                {msg.text}
+                {msg.type === 'ai' && msg.meta && <div className="mt-1 text-[10px] opacity-60">{msg.meta}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-3 grid grid-cols-1 gap-2">
+          {quickReplyButtons.map((btn, idx) => (
+            <Button key={idx} disabled={chatLoading} onClick={() => void handleSendMessage(btn)} className="text-left">
+              {btn}
+            </Button>
+          ))}
+        </div>
+
+        <Space.Compact className="w-full">
+          <Input
+            placeholder="输入你的问题..."
+            value={inputMessage}
+            disabled={chatLoading}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onPressEnter={() => void handleSendMessage()}
+          />
+          <Button type="primary" icon={<SendOutlined />} loading={chatLoading} onClick={() => void handleSendMessage()} />
+        </Space.Compact>
+
+        <p className="text-xs text-gray-400 mt-2 text-center">AI 内容仅供健康管理参考，不替代医生诊断</p>
+      </Card>
+    </div>
   );
 
   const renderSection = () => {

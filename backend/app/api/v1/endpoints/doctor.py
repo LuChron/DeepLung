@@ -1,7 +1,14 @@
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.common import APIResponse
-from app.schemas.dto import DoctorReportItem, FollowupItem, PatientTriageItem, PublishReportRequest
+from app.schemas.dto import (
+    DoctorPatientMessageItem,
+    DoctorReportItem,
+    FollowupItem,
+    PatientTriageItem,
+    PublishReportRequest,
+    SendDoctorMessageRequest,
+)
 from app.services.mock_store import store
 
 
@@ -26,6 +33,26 @@ def list_reports(patient_id: str | None = None) -> APIResponse[list[DoctorReport
 def list_followups(days: int = 365) -> APIResponse[list[FollowupItem]]:
     rows = [FollowupItem(**x) for x in store.list_followups(days=days)]
     return APIResponse(data=rows)
+
+
+@router.get('/patients/{patient_id}/messages', response_model=APIResponse[list[DoctorPatientMessageItem]])
+def list_patient_messages(patient_id: str, limit: int = 100) -> APIResponse[list[DoctorPatientMessageItem]]:
+    rows = [DoctorPatientMessageItem(**x) for x in store.list_doctor_messages(patient_id=patient_id, limit=limit)]
+    return APIResponse(data=rows)
+
+
+@router.post('/patients/{patient_id}/messages', response_model=APIResponse[DoctorPatientMessageItem])
+def send_message(patient_id: str, payload: SendDoctorMessageRequest) -> APIResponse[DoctorPatientMessageItem]:
+    try:
+        row = store.create_doctor_message(
+            patient_id=patient_id,
+            doctor_username=payload.doctor_username,
+            content=payload.content,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return APIResponse(data=DoctorPatientMessageItem(**row))
 
 
 @router.post('/studies/{study_id}/publish_report', response_model=APIResponse[dict])
