@@ -1,0 +1,133 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router';
+import { Card, Input, Button, Segmented, Form } from 'antd';
+import { UserOutlined, LockOutlined, MedicineBoxOutlined, TeamOutlined } from '@ant-design/icons';
+
+export function LoginPage() {
+  const [loginType, setLoginType] = useState<string | number>('doctor');
+  const navigate = useNavigate();
+  const [form] = Form.useForm();
+
+  const handleLogin = () => {
+    if (loginType === 'doctor') {
+      navigate('/doctor-dashboard');
+    } else {
+      navigate('/patient-dashboard');
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* Background */}
+      <div 
+        className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-blue-50 to-teal-50"
+        style={{
+          backgroundImage: `url('https://images.unsplash.com/photo-1759270463226-c5e04a4542c1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG1lZGljYWwlMjBiYWNrZ3JvdW5kJTIwYmx1ZXxlbnwxfHx8fDE3NzM1NzI3NDh8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.4,
+        }}
+      />
+      
+      {/* Glassmorphism Login Card */}
+      <Card
+        className="w-[480px] shadow-2xl relative z-10"
+        style={{
+          background: 'rgba(255, 255, 255, 0.85)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+        }}
+      >
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 mb-4">
+            <MedicineBoxOutlined className="text-white text-3xl" />
+          </div>
+          <h1 className="text-3xl mb-2">Medical AI Platform</h1>
+          <p className="text-gray-500">Advanced Diagnostic Intelligence</p>
+        </div>
+
+        {/* Segmented Control */}
+        <div className="mb-6">
+          <Segmented
+            block
+            size="large"
+            value={loginType}
+            onChange={setLoginType}
+            options={[
+              {
+                label: (
+                  <div className="py-2 px-4">
+                    <UserOutlined className="mr-2" />
+                    👨‍⚕️ Doctor Login
+                  </div>
+                ),
+                value: 'doctor',
+              },
+              {
+                label: (
+                  <div className="py-2 px-4">
+                    <TeamOutlined className="mr-2" />
+                    🧑‍🤝‍🧑 Patient Login
+                  </div>
+                ),
+                value: 'patient',
+              },
+            ]}
+          />
+        </div>
+
+        {/* Login Form */}
+        <Form form={form} onFinish={handleLogin} layout="vertical">
+          <Form.Item
+            name="id"
+            rules={[{ required: true, message: 'Please input your ID!' }]}
+          >
+            <Input
+              size="large"
+              prefix={<UserOutlined className="text-gray-400" />}
+              placeholder={loginType === 'doctor' ? 'Doctor ID' : 'Patient ID'}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="password"
+            rules={[{ required: true, message: 'Please input your password!' }]}
+          >
+            <Input.Password
+              size="large"
+              prefix={<LockOutlined className="text-gray-400" />}
+              placeholder="Password"
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              size="large"
+              block
+              className="h-12 text-lg"
+            >
+              Sign In
+            </Button>
+          </Form.Item>
+
+          <div className="text-center text-sm text-gray-500 mt-4">
+            <a href="#" className="text-cyan-600 hover:text-cyan-700">
+              Forgot Password?
+            </a>
+            <span className="mx-2">|</span>
+            <a href="#" className="text-cyan-600 hover:text-cyan-700">
+              Need Help?
+            </a>
+          </div>
+        </Form>
+
+        <div className="mt-6 pt-6 border-t border-gray-200 text-center text-xs text-gray-500">
+          <p>🔒 Secure Healthcare Platform | HIPAA Compliant</p>
+          <p className="mt-1">© 2026 Medical AI SaaS Platform</p>
+        </div>
+      </Card>
+    </div>
+  );
+}

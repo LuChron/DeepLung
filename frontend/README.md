@@ -1,33 +1,29 @@
-# Frontend
+## DeepLung 前端（新版）
 
-双端前端工程：
-- `apps/doctor-web`：医生端工作台（风险看板 + AI 任务触发）
-- `apps/patient-h5`：患者端 H5（报告解读）
+该目录已替换为你提供的完整前端设计版本（单应用，包含医生与患者相关界面流程）。
 
-## 安装
+## 启动项目
+
+在项目根目录执行以下命令安装依赖：
 
 ```bash
-cd frontend
 npm install
-npm --prefix apps/doctor-web install
-npm --prefix apps/patient-h5 install
 ```
 
-## 启动
+启动前端开发服务器：
 
 ```bash
-# 同时启动两个前端
 npm run dev
 ```
 
-访问地址：
-- 医生端：`http://127.0.0.1:5173`
-- 患者端：`http://127.0.0.1:5174`
+启动后默认访问地址：
 
-## 前置服务
+```text
+http://127.0.0.1:5173/
+```
 
-请先启动后端：
-- Backend：`http://127.0.0.1:8000`
-- AI Engine：`http://127.0.0.1:8100`
+如果需要让局域网内其他设备访问，可以使用：
 
-前端开发服务器已配置 `/api` 代理到 Backend。
+```bash
+npm run dev
+```
