@@ -84,9 +84,12 @@ conda create -n deeplung -y python=3.11
 conda activate deeplung
 ```
 
-安装后端 + AI 依赖：
+若 `conda activate` 报错，先执行 `conda init` 并重开一个终端。
+
+安装后端 + AI 依赖（首次建议先安装 CPU 版 torch/torchvision，避免版本不匹配）：
 
 ```bash
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -r backend/requirements.txt -r ai-engine/requirements.txt
 python -m pip install -r ai-engine/requirements-monai.txt
 ```
@@ -103,24 +106,27 @@ npm install
 ### 终端 A：AI Engine（MONAI）
 
 ```bash
+conda activate deeplung
 cd ai-engine
 export DETECTOR_PROVIDER=monai_bundle
 export MODEL_VERSION=monai-lung-nodule-v1
 export MONAI_BUNDLE_REPO_ID=MONAI/lung_nodule_ct_detection
-export MONAI_BUNDLE_DIR=./models/lung_nodule_ct_detection
+export MONAI_BUNDLE_DIR=./models/lung_nodule_ct_detection_hf
 export MONAI_AUTO_DOWNLOAD=true
 export MONAI_INFER_CONFIG_RELPATH=configs/inference.json
 export MONAI_META_FILE_RELPATH=configs/metadata.json
-export MONAI_DEVICE=auto
-export FALLBACK_TO_MOCK_ON_ERROR=true
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8100
+export MONAI_DEVICE=cpu
+export FALLBACK_TO_MOCK_ON_ERROR=false
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8100
 ```
 
 ### 终端 B：Backend
 
 ```bash
+conda activate deeplung
 cd backend
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+export AI_ENGINE_BASE_URL=http://127.0.0.1:8100
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 终端 C：Frontend
@@ -133,8 +139,12 @@ npm run dev
 ## 5.3 访问地址
 
 - Backend OpenAPI: http://127.0.0.1:8000/docs
+- Backend Health: http://127.0.0.1:8000/api/v1/health
 - AI Engine OpenAPI: http://127.0.0.1:8100/docs
+- AI Engine Health: http://127.0.0.1:8100/health
 - Frontend: http://127.0.0.1:5173
+
+说明：`http://127.0.0.1:8000/health` 是 404，后端健康检查实际路径是 `/api/v1/health`。
 
 ## 6. 默认登录账号
 
@@ -148,22 +158,37 @@ npm run dev
 
 患者端聊天调用后端：`POST /api/v1/chat/assistant`
 
-默认：
-
-- `ASSISTANT_PROVIDER=mock`
-
-切到外部 API（OpenAI 兼容格式）时，仅需配置环境变量并重启 backend：
+默认是 `mock`。要切到 DeepSeek，推荐写到 `backend/.env`：
 
 ```bash
-export ASSISTANT_PROVIDER=external
-export ASSISTANT_API_BASE_URL=https://api.openai.com/v1
-export ASSISTANT_API_KEY=your_api_key
-export ASSISTANT_MODEL=gpt-4o-mini
+# 在仓库根目录执行
+cp backend/.env.example backend/.env
 ```
 
-可选回退开关：
+编辑 `backend/.env`，至少填这几项：
 
-- `ASSISTANT_FALLBACK_TO_MOCK_ON_ERROR=true`（默认）
+```env
+ASSISTANT_PROVIDER=external
+ASSISTANT_API_BASE_URL=https://api.deepseek.com/v1
+ASSISTANT_API_KEY=sk-xxxx
+ASSISTANT_MODEL=deepseek-chat
+ASSISTANT_TIMEOUT_SECONDS=60
+ASSISTANT_FALLBACK_TO_MOCK_ON_ERROR=true
+```
+
+然后重启 backend 生效。
+
+如何保证不提交到 git：
+
+```bash
+git check-ignore -v backend/.env
+```
+
+若这个文件曾经被提交过，再执行一次：
+
+```bash
+git rm --cached backend/.env
+```
 
 ## 8. 常用 API 一览
 
@@ -181,11 +206,26 @@ export ASSISTANT_MODEL=gpt-4o-mini
 
 ## 9. 一次性冒烟验证（手动）
 
-1. 医生账号登录前端。
+1. 医生账号登录前端（`doctor_demo / doctor123456`）。
 2. 进入医生工作台，输入后端可访问的 CT 绝对路径。
-3. 触发 AI 推理，等待 `SUCCEEDED`。
-4. 签发报告，前端跳转患者页并携带 `report_id`。
-5. 患者页可读取报告并通过聊天框请求 `/api/v1/chat/assistant`。
+3. 点击“上传并触发 AI 推理”，等待 `SUCCEEDED`。
+4. 点击“Sign & Send to Patient”签发报告。
+5. 切换患者账号（`patient_demo / patient123456`）查看报告与对话。
+
+如果你没有现成 CT，可先生成一个测试 NIfTI：
+
+```bash
+conda activate deeplung
+python - <<'PY'
+import numpy as np, nibabel as nib
+arr = np.random.normal(loc=-800, scale=120, size=(96,96,96)).astype('float32')
+arr[44:52,44:52,44:52] = 120.0
+nib.save(nib.Nifti1Image(arr, np.eye(4, dtype='float32')), '/tmp/deeplung_monai_smoke.nii.gz')
+print('/tmp/deeplung_monai_smoke.nii.gz')
+PY
+```
+
+然后在医生工作台把 CT 路径填为：`/tmp/deeplung_monai_smoke.nii.gz`。
 
 ## 10. 已知限制
 

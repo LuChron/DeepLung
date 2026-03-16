@@ -131,6 +131,7 @@ class PersistentStore:
                 {
                     'report_id': r.report_id,
                     'patient_id': r.patient_id,
+                    'study_id': r.study_id,
                     'followup_due_at': r.followup_due_at,
                     'risk_light': r.risk_light,
                     'summary': r.summary,
@@ -274,6 +275,7 @@ class PersistentStore:
                 return None
             return {
                 'report_id': report.report_id,
+                'study_id': report.study_id,
                 'risk_light': report.risk_light,
                 'summary': report.summary,
                 'recommendation': report.recommendation,

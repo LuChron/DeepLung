@@ -78,6 +78,7 @@ class NoduleItem(BaseModel):
 
 class PatientReportResponse(BaseModel):
     report_id: str
+    study_id: str | None = None
     risk_light: Literal['GREEN', 'YELLOW', 'RED']
     summary: str
     recommendation: str
@@ -113,6 +114,7 @@ class DoctorReportItem(BaseModel):
 class FollowupItem(BaseModel):
     report_id: str
     patient_id: str
+    study_id: str | None = None
     followup_due_at: date
     risk_light: Literal['GREEN', 'YELLOW', 'RED']
     summary: str

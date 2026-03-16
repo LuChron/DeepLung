@@ -55,15 +55,16 @@ type ChatMessage = {
 };
 
 function riskLightToTag(riskLight: PatientReportResponse['risk_light'] | undefined): { color: string; text: string } {
-  if (riskLight === 'RED') return { color: 'red', text: 'High Risk' };
-  if (riskLight === 'YELLOW') return { color: 'orange', text: 'Medium Risk' };
-  return { color: 'green', text: 'Low Risk' };
+  if (!riskLight) return { color: 'default', text: '待评估' };
+  if (riskLight === 'RED') return { color: 'red', text: '高风险' };
+  if (riskLight === 'YELLOW') return { color: 'orange', text: '中风险' };
+  return { color: 'green', text: '低风险' };
 }
 
 function riskLightBadge(riskLight: PatientReportListItem['risk_light']) {
-  if (riskLight === 'RED') return <Tag color="red">HIGH</Tag>;
-  if (riskLight === 'YELLOW') return <Tag color="orange">MEDIUM</Tag>;
-  return <Tag color="green">LOW</Tag>;
+  if (riskLight === 'RED') return <Tag color="red">高危</Tag>;
+  if (riskLight === 'YELLOW') return <Tag color="orange">中危</Tag>;
+  return <Tag color="green">低危</Tag>;
 }
 
 function toDateText(value: string | null | undefined): string {
@@ -76,7 +77,8 @@ export function PatientDashboard() {
   const [searchParams] = useSearchParams();
 
   const patientId = searchParams.get('patientId') || getUsername() || 'patient_demo';
-  const reportId = searchParams.get('reportId') || 'R202603090001';
+  const reportIdFromQuery = searchParams.get('reportId');
+  const [reportId, setReportId] = useState<string | null>(reportIdFromQuery);
 
   const [selectedMenu, setSelectedMenu] = useState<MenuKey>('dashboard');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -98,6 +100,10 @@ export function PatientDashboard() {
 
   const riskTag = useMemo(() => riskLightToTag(report?.risk_light), [report?.risk_light]);
 
+  useEffect(() => {
+    setReportId(reportIdFromQuery);
+  }, [reportIdFromQuery]);
+
   const followupDays = useMemo(() => {
     if (!report?.followup_due_at) return 0;
     const now = new Date();
@@ -107,10 +113,10 @@ export function PatientDashboard() {
   }, [report?.followup_due_at]);
 
   const headerMap: Record<MenuKey, { title: string; desc: string }> = {
-    dashboard: { title: 'Patient Dashboard', desc: '你的最新报告、风险与复查总览' },
-    reports: { title: 'My Reports', desc: '查看历史报告与当前报告详情' },
-    appointments: { title: 'Follow-up Plan', desc: '查看复查时间与执行建议' },
-    messages: { title: 'Messages', desc: '查看医生消息并与健康助手对话' },
+    dashboard: { title: '患者首页', desc: '你的最新报告、风险与复查总览' },
+    reports: { title: '我的报告', desc: '查看历史报告与当前报告详情' },
+    appointments: { title: '随访计划', desc: '查看复查时间与执行建议' },
+    messages: { title: '消息中心', desc: '查看医生消息并与健康助手对话' },
   };
 
   const handleSendMessage = async (messageText?: string) => {
@@ -145,6 +151,10 @@ export function PatientDashboard() {
   };
 
   const loadCurrentReport = async () => {
+    if (!reportId) {
+      setReport(null);
+      return;
+    }
     setLoadingReport(true);
     try {
       const data = await getPatientReport(reportId);
@@ -163,10 +173,24 @@ export function PatientDashboard() {
     try {
       const data = await listPatientReports(patientId);
       setReportList(data);
+      if (!data.length) {
+        setReportId(null);
+        return;
+      }
+
+      const hasQueryReport = reportIdFromQuery && data.some((x) => x.report_id === reportIdFromQuery);
+      const resolvedReportId = hasQueryReport ? reportIdFromQuery : data[0].report_id;
+      setReportId(resolvedReportId);
+      if (!hasQueryReport || !reportIdFromQuery) {
+        navigate(`/patient-dashboard?patientId=${encodeURIComponent(patientId)}&reportId=${encodeURIComponent(resolvedReportId)}`, {
+          replace: true,
+        });
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : '历史报告加载失败';
       message.error(detail);
       setReportList([]);
+      setReportId(null);
     } finally {
       setLoadingReportList(false);
     }
@@ -205,21 +229,21 @@ export function PatientDashboard() {
     }
 
     const lines = [
-      `Report ID: ${report.report_id}`,
-      `Patient ID: ${patientId}`,
-      `Risk: ${report.risk_light}`,
-      `Follow-up Due: ${toDateText(report.followup_due_at)}`,
+      `报告 ID: ${report.report_id}`,
+      `患者 ID: ${patientId}`,
+      `风险等级: ${report.risk_light}`,
+      `随访日期: ${toDateText(report.followup_due_at)}`,
       '',
-      'Summary:',
+      '报告摘要：',
       report.summary,
       '',
-      'Recommendation:',
+      '医生建议：',
       report.recommendation,
       '',
-      'Nodules:',
+      '结节明细：',
       ...(report.nodules.length
-        ? report.nodules.map((n) => `${n.location} | diameter=${n.diameter_mm.toFixed(2)}mm | score=${(n.detection_score * 100).toFixed(1)}%`)
-        : ['None']),
+        ? report.nodules.map((n) => `${n.location} | 直径=${n.diameter_mm.toFixed(2)}mm | 分值=${(n.detection_score * 100).toFixed(1)}%`)
+        : ['无']),
     ];
 
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
@@ -237,45 +261,45 @@ export function PatientDashboard() {
 
   const reportColumns = [
     {
-      title: 'Report ID',
+      title: '报告 ID',
       dataIndex: 'report_id',
       key: 'report_id',
       width: 190,
     },
     {
-      title: 'Risk',
+      title: '风险',
       dataIndex: 'risk_light',
       key: 'risk_light',
       width: 110,
       render: (risk: PatientReportListItem['risk_light']) => riskLightBadge(risk),
     },
     {
-      title: 'Summary',
+      title: '摘要',
       dataIndex: 'summary',
       key: 'summary',
       render: (text: string) => <span>{text.length > 70 ? `${text.slice(0, 70)}...` : text}</span>,
     },
     {
-      title: 'Follow-up',
+      title: '随访',
       dataIndex: 'followup_due_at',
       key: 'followup_due_at',
       width: 130,
       render: (value: string | null) => toDateText(value),
     },
     {
-      title: 'Created',
+      title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
       width: 130,
       render: (value: string) => toDateText(value),
     },
     {
-      title: 'Action',
+      title: '操作',
       key: 'action',
       width: 120,
       render: (_: unknown, row: PatientReportListItem) => (
         <Button onClick={() => navigate(`/patient-dashboard?patientId=${encodeURIComponent(patientId)}&reportId=${encodeURIComponent(row.report_id)}`)}>
-          Open
+          打开
         </Button>
       ),
     },
@@ -337,7 +361,7 @@ export function PatientDashboard() {
         </div>
 
         <Button type="primary" size="large" block icon={<FileTextOutlined />} onClick={downloadCurrentReport}>
-          Download Report (TXT)
+          下载报告（TXT）
         </Button>
       </div>
     </Card>
@@ -361,7 +385,7 @@ export function PatientDashboard() {
             children: (
               <div>
                 <p className="m-0">报告已同步</p>
-                <p className="text-xs text-gray-500 m-0">{reportId}</p>
+                <p className="text-xs text-gray-500 m-0">{reportId || '-'}</p>
               </div>
             ),
           },
@@ -373,7 +397,7 @@ export function PatientDashboard() {
                 <p className="m-0">下次复查时间</p>
                 <p className="text-xs text-gray-500 m-0">{toDateText(report?.followup_due_at)}</p>
                 <Tag color="orange" className="mt-1">
-                  In {followupDays} Days
+                  {followupDays} 天后
                 </Tag>
               </div>
             ),
@@ -403,14 +427,14 @@ export function PatientDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MessageOutlined className="text-cyan-600" />
-              <span>Doctor Messages</span>
+              <span>医生消息</span>
             </div>
           </div>
         }
         className="shadow-sm"
         extra={
           <Button size="small" onClick={() => void loadDoctorMessages()} loading={loadingDoctorMessages}>
-            Refresh
+            刷新
           </Button>
         }
       >
@@ -489,15 +513,23 @@ export function PatientDashboard() {
       return (
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-8 space-y-6">
-            <Card className="bg-gradient-to-r from-cyan-500 to-teal-500 border-0 shadow-lg">
-              <div className="flex items-center justify-between text-white">
+            <div
+              className="rounded-2xl shadow-lg p-8"
+              style={{
+                background: 'linear-gradient(120deg, #0891b2 0%, #0d9488 45%, #0f766e 100%)',
+                color: '#ffffff',
+              }}
+            >
+              <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-3xl m-0 mb-2">欢迎回来，{patientId}</h2>
-                  <p className="text-lg text-cyan-50 m-0">当前报告：{reportId}</p>
+                  <p className="text-lg m-0" style={{ color: 'rgba(240, 253, 250, 0.96)' }}>
+                    当前报告：{reportId || '-'}
+                  </p>
                 </div>
-                <HeartOutlined className="text-7xl opacity-20" />
+                <HeartOutlined className="text-7xl" style={{ opacity: 0.2 }} />
               </div>
-            </Card>
+            </div>
 
             {renderReportDetail()}
           </div>
@@ -527,7 +559,7 @@ export function PatientDashboard() {
               columns={reportColumns}
               dataSource={reportList}
               loading={loadingReportList}
-              pagination={{ pageSize: 8, showTotal: (total) => `Total ${total} reports` }}
+              pagination={{ pageSize: 8, showTotal: (total) => `共 ${total} 份报告` }}
             />
           </Card>
 
@@ -560,16 +592,20 @@ export function PatientDashboard() {
   };
 
   return (
-    <Layout className="min-h-screen">
-      <Sider width={260} className="bg-white shadow-lg">
-        <div className="p-6">
+    <Layout className="min-h-screen" style={{ minHeight: '100vh' }}>
+      <Sider
+        width={260}
+        className="bg-white shadow-lg"
+        style={{ background: '#00152f', boxShadow: '6px 0 18px rgba(0, 20, 48, 0.18)' }}
+      >
+        <div className="p-6" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <div className="flex items-center gap-3 mb-8">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
               <HeartOutlined className="text-white text-2xl" />
             </div>
             <div>
-              <h2 className="text-lg m-0">Health Portal</h2>
-              <p className="text-xs text-gray-500 m-0">Patient Dashboard</p>
+              <h2 className="text-lg m-0">健康门户</h2>
+              <p className="text-xs text-gray-500 m-0">患者工作台</p>
             </div>
           </div>
 
@@ -579,50 +615,58 @@ export function PatientDashboard() {
             onClick={(e) => setSelectedMenu(e.key as MenuKey)}
             className="border-0"
             items={[
-              { key: 'dashboard', icon: <HomeOutlined />, label: 'Dashboard' },
-              { key: 'reports', icon: <FileTextOutlined />, label: 'My Reports' },
-              { key: 'appointments', icon: <CalendarOutlined />, label: 'Appointments' },
-              { key: 'messages', icon: <MessageOutlined />, label: 'Messages' },
+              { key: 'dashboard', icon: <HomeOutlined />, label: '患者首页' },
+              { key: 'reports', icon: <FileTextOutlined />, label: '我的报告' },
+              { key: 'appointments', icon: <CalendarOutlined />, label: '随访计划' },
+              { key: 'messages', icon: <MessageOutlined />, label: '消息中心' },
             ]}
           />
 
-          <Divider />
-
-          <Card size="small" className="bg-gradient-to-br from-cyan-50 to-teal-50 border-cyan-200">
-            <div className="text-center">
-              <Avatar size={64} icon={<UserOutlined />} className="bg-cyan-500 mb-2" />
-              <p className="m-0">{patientId}</p>
-              <p className="text-xs text-gray-500 m-0">Current Report: {reportId}</p>
-              <Button
-                size="small"
-                icon={<LogoutOutlined />}
-                onClick={() => {
-                  clearSession();
-                  navigate('/');
-                }}
-                className="mt-3"
-                block
-              >
-                Logout
-              </Button>
-            </div>
-          </Card>
+          <div style={{ marginTop: 'auto' }}>
+            <Divider />
+            <Card size="small" className="bg-gradient-to-br from-cyan-50 to-teal-50 border-cyan-200">
+              <div className="text-center">
+                <Avatar size={64} icon={<UserOutlined />} className="bg-cyan-500 mb-2" />
+                <p className="m-0">{patientId}</p>
+                <p className="text-xs text-gray-500 m-0">当前报告：{reportId || '-'}</p>
+                <Button
+                  size="small"
+                  icon={<LogoutOutlined />}
+                  onClick={() => {
+                    clearSession();
+                    navigate('/');
+                  }}
+                  className="mt-3"
+                  block
+                >
+                  退出登录
+                </Button>
+              </div>
+            </Card>
+          </div>
         </div>
       </Sider>
 
-      <Layout>
-        <Header className="bg-white shadow-sm px-8 flex items-center justify-between">
+      <Layout style={{ minHeight: '100vh', background: '#f5f7fb' }}>
+        <Header
+          className="bg-white shadow-sm px-8 flex items-center justify-between"
+          style={{ background: '#001a3a', color: '#fff' }}
+        >
           <div>
-            <h1 className="text-2xl m-0">{headerMap[selectedMenu].title}</h1>
-            <p className="text-sm text-gray-500 m-0">{headerMap[selectedMenu].desc}</p>
+            <h1 className="text-2xl m-0" style={{ color: '#ffffff' }}>
+              {headerMap[selectedMenu].title}
+            </h1>
+            <p className="text-sm text-gray-500 m-0" style={{ color: '#9ec5ff' }}>
+              {headerMap[selectedMenu].desc}
+            </p>
           </div>
           <Tag color={riskTag.color} className="px-4 py-1">
             <CheckCircleOutlined className="mr-1" />
-            Risk: {riskTag.text}
+            风险：{riskTag.text}
           </Tag>
         </Header>
 
-        <Content className="p-6 bg-gray-50">
+        <Content className="p-6 bg-gray-50" style={{ background: '#f5f7fb', minHeight: 'calc(100vh - 64px)' }}>
           <div className="max-w-[1600px] mx-auto">{renderSection()}</div>
         </Content>
       </Layout>

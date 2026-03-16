@@ -25,8 +25,17 @@ uvicorn app.main:app --reload --port 8000
 
 - 路由：`POST /api/v1/chat/assistant`
 - 默认 provider：`mock`（不依赖外部 API）
-- 可切换外部 provider（OpenAI 兼容接口）：
+- 可切换外部 provider（OpenAI 兼容接口，例如 DeepSeek）：
   - `ASSISTANT_PROVIDER=external`
-  - `ASSISTANT_API_BASE_URL=https://api.openai.com/v1`
+  - `ASSISTANT_API_BASE_URL=https://api.deepseek.com/v1`
   - `ASSISTANT_API_KEY=<your_api_key>`
-  - `ASSISTANT_MODEL=gpt-4o-mini`
+  - `ASSISTANT_MODEL=deepseek-chat`
+
+DeepSeek 示例（Linux/macOS）：
+
+```bash
+export ASSISTANT_PROVIDER=external
+export ASSISTANT_API_BASE_URL=https://api.deepseek.com/v1
+export ASSISTANT_API_KEY=sk-xxxxxxxx
+export ASSISTANT_MODEL=deepseek-chat
+```
