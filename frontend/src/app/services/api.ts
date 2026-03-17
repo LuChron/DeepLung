@@ -1,6 +1,9 @@
 import { getAccessToken, type UserRole } from './session';
 
-const RAW_BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL || 'http://127.0.0.1:8000';
+const ENV_BASE_URL = String(import.meta.env.VITE_BACKEND_BASE_URL || '').trim();
+const AUTO_BASE_URL =
+  typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://127.0.0.1:8000';
+const RAW_BASE_URL = ENV_BASE_URL || AUTO_BASE_URL;
 export const BACKEND_BASE_URL = RAW_BASE_URL.replace(/\/$/, '');
 
 type ApiResponse<T> = {
@@ -45,6 +48,7 @@ export type DoctorPatientMessageItem = {
 export type FollowupItem = {
   report_id: string;
   patient_id: string;
+  study_id: string | null;
   followup_due_at: string;
   risk_light: 'GREEN' | 'YELLOW' | 'RED';
   summary: string;
@@ -109,6 +113,7 @@ export type PatientReportNodule = {
 
 export type PatientReportResponse = {
   report_id: string;
+  study_id: string | null;
   risk_light: 'GREEN' | 'YELLOW' | 'RED';
   summary: string;
   recommendation: string;

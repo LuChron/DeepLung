@@ -27,9 +27,9 @@ class Settings(BaseSettings):
 
     assistant_provider: str = 'mock'  # mock | external
     assistant_fallback_to_mock_on_error: bool = True
-    assistant_api_base_url: str = 'https://api.openai.com/v1'
+    assistant_api_base_url: str = 'https://api.deepseek.com/v1'
     assistant_api_key: str = ''
-    assistant_model: str = 'gpt-4o-mini'
+    assistant_model: str = 'deepseek-chat'
     assistant_timeout_seconds: int = 60
     assistant_system_prompt: str = '你是肺结节随访助手，回答应简洁、谨慎、以就医建议为主，不做确诊。'
 

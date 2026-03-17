@@ -1,178 +1,87 @@
-﻿-- PostgreSQL 15+
--- DeepLung 核心业务表设计
-
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- DeepLung 课程原型数据库设计
+-- 当前项目实际实现基于 SQLAlchemy，可运行于 SQLite。
+-- 下列 DDL 用于表达当前核心数据结构，字段命名与仓库实现保持一致。
 
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     username VARCHAR(64) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(16) NOT NULL CHECK (role IN ('doctor', 'patient', 'admin')),
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS doctor_profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL UNIQUE REFERENCES users(id),
-    doctor_no VARCHAR(64) NOT NULL UNIQUE,
-    name VARCHAR(64) NOT NULL,
-    department VARCHAR(64),
-    title VARCHAR(64),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS patient_profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID UNIQUE REFERENCES users(id),
-    patient_no VARCHAR(64) NOT NULL UNIQUE,
-    name VARCHAR(64) NOT NULL,
-    gender VARCHAR(8) CHECK (gender IN ('male', 'female', 'unknown')),
-    birth_date DATE,
-    phone VARCHAR(32),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS patient_doctor_bindings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID NOT NULL REFERENCES patient_profiles(id),
-    doctor_id UUID NOT NULL REFERENCES doctor_profiles(id),
-    bind_type VARCHAR(16) NOT NULL DEFAULT 'primary',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(patient_id, doctor_id)
+    role VARCHAR(16) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS studies (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    study_no VARCHAR(64) NOT NULL UNIQUE,
-    patient_id UUID NOT NULL REFERENCES patient_profiles(id),
-    uploaded_by UUID NOT NULL REFERENCES users(id),
-    modality VARCHAR(16) NOT NULL DEFAULT 'CT',
-    file_format VARCHAR(16) NOT NULL CHECK (file_format IN ('dicom', 'mhd', 'nrrd', 'nii')),
-    object_key VARCHAR(255) NOT NULL,
-    status VARCHAR(24) NOT NULL CHECK (
-        status IN ('UPLOADING', 'READY', 'INFER_PENDING', 'INFER_RUNNING', 'INFER_DONE', 'INFER_FAILED')
-    ),
-    study_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    study_id VARCHAR(32) NOT NULL UNIQUE,
+    patient_id VARCHAR(64) NOT NULL,
+    object_key VARCHAR(1024) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    created_at DATETIME NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_studies_patient ON studies(patient_id);
-CREATE INDEX IF NOT EXISTS idx_studies_status ON studies(status);
+CREATE INDEX IF NOT EXISTS idx_studies_study_id ON studies(study_id);
+CREATE INDEX IF NOT EXISTS idx_studies_patient_id ON studies(patient_id);
 
-CREATE TABLE IF NOT EXISTS ai_jobs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    job_no VARCHAR(64) NOT NULL UNIQUE,
-    study_id UUID NOT NULL REFERENCES studies(id),
-    status VARCHAR(16) NOT NULL CHECK (status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED')),
+CREATE TABLE IF NOT EXISTS jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id VARCHAR(32) NOT NULL UNIQUE,
+    study_id VARCHAR(32) NOT NULL,
+    status VARCHAR(16) NOT NULL,
     model_version VARCHAR(64) NOT NULL,
-    retry_count INT NOT NULL DEFAULT 0,
-    error_message TEXT,
-    started_at TIMESTAMPTZ,
-    finished_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    risk_score FLOAT NULL,
+    risk_level VARCHAR(16) NULL,
+    summary TEXT NULL,
+    inference_mode_used VARCHAR(64) NULL,
+    note TEXT NULL,
+    nodules JSON NOT NULL,
+    updated_at DATETIME NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_ai_jobs_study ON ai_jobs(study_id);
-CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_job_id ON jobs(job_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_study_id ON jobs(study_id);
 
-CREATE TABLE IF NOT EXISTS ai_predictions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    study_id UUID NOT NULL REFERENCES studies(id),
-    job_id UUID NOT NULL REFERENCES ai_jobs(id),
-    risk_score NUMERIC(5,4) NOT NULL,
-    risk_level VARCHAR(8) NOT NULL CHECK (risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
-    summary TEXT,
-    raw_json JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(study_id, job_id)
+CREATE TABLE IF NOT EXISTS patient_triage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id VARCHAR(64) NOT NULL UNIQUE,
+    name_masked VARCHAR(64) NOT NULL,
+    latest_risk_score FLOAT NOT NULL DEFAULT 0.0,
+    latest_risk_level VARCHAR(16) NOT NULL DEFAULT 'LOW',
+    largest_nodule_mm FLOAT NOT NULL DEFAULT 0.0,
+    report_status VARCHAR(16) NOT NULL DEFAULT 'NONE',
+    updated_at DATETIME NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_ai_predictions_study ON ai_predictions(study_id);
-CREATE INDEX IF NOT EXISTS idx_ai_predictions_risk ON ai_predictions(risk_score DESC);
-
-CREATE TABLE IF NOT EXISTS nodules (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    prediction_id UUID NOT NULL REFERENCES ai_predictions(id),
-    nodule_index INT NOT NULL,
-    coord_x NUMERIC(10,4) NOT NULL,
-    coord_y NUMERIC(10,4) NOT NULL,
-    coord_z NUMERIC(10,4) NOT NULL,
-    diameter_mm NUMERIC(10,4),
-    volume_mm3 NUMERIC(14,4),
-    detection_score NUMERIC(5,4) NOT NULL,
-    bbox_json JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(prediction_id, nodule_index)
-);
-
-CREATE INDEX IF NOT EXISTS idx_nodules_prediction ON nodules(prediction_id);
+CREATE INDEX IF NOT EXISTS idx_triage_patient_id ON patient_triage(patient_id);
 
 CREATE TABLE IF NOT EXISTS reports (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    report_no VARCHAR(64) NOT NULL UNIQUE,
-    study_id UUID NOT NULL REFERENCES studies(id),
-    prediction_id UUID NOT NULL REFERENCES ai_predictions(id),
-    doctor_id UUID NOT NULL REFERENCES doctor_profiles(id),
-    status VARCHAR(16) NOT NULL CHECK (status IN ('DRAFT', 'REVIEWED', 'PUBLISHED')),
-    risk_level VARCHAR(8) NOT NULL CHECK (risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
-    impression TEXT,
-    recommendation TEXT,
-    published_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id VARCHAR(32) NOT NULL UNIQUE,
+    patient_id VARCHAR(64) NOT NULL,
+    study_id VARCHAR(32) NULL,
+    risk_light VARCHAR(16) NOT NULL,
+    summary TEXT NOT NULL,
+    recommendation TEXT NOT NULL,
+    nodules JSON NOT NULL,
+    followup_due_at DATE NULL,
+    created_at DATETIME NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_reports_study ON reports(study_id);
-CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_reports_report_id ON reports(report_id);
+CREATE INDEX IF NOT EXISTS idx_reports_patient_id ON reports(patient_id);
 
-CREATE TABLE IF NOT EXISTS report_versions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    report_id UUID NOT NULL REFERENCES reports(id),
-    version_no INT NOT NULL,
-    content_json JSONB NOT NULL,
-    edited_by UUID NOT NULL REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(report_id, version_no)
+CREATE TABLE IF NOT EXISTS doctor_patient_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id VARCHAR(64) NOT NULL,
+    doctor_username VARCHAR(64) NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS followup_plans (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID NOT NULL REFERENCES patient_profiles(id),
-    report_id UUID NOT NULL REFERENCES reports(id),
-    risk_level VARCHAR(8) NOT NULL CHECK (risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
-    interval_months INT NOT NULL CHECK (interval_months IN (3, 6, 12)),
-    next_due_at DATE NOT NULL,
-    status VARCHAR(16) NOT NULL CHECK (status IN ('ACTIVE', 'DONE', 'CANCELLED')),
-    created_by UUID NOT NULL REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+CREATE INDEX IF NOT EXISTS idx_messages_patient_id ON doctor_patient_messages(patient_id);
+CREATE INDEX IF NOT EXISTS idx_messages_doctor_username ON doctor_patient_messages(doctor_username);
 
-CREATE INDEX IF NOT EXISTS idx_followup_due ON followup_plans(next_due_at);
-
-CREATE TABLE IF NOT EXISTS followup_notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    plan_id UUID NOT NULL REFERENCES followup_plans(id),
-    channel VARCHAR(16) NOT NULL CHECK (channel IN ('in_app', 'sms', 'email')),
-    status VARCHAR(16) NOT NULL CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'ACKED')),
-    message TEXT NOT NULL,
-    sent_at TIMESTAMPTZ,
-    acked_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    actor_id UUID REFERENCES users(id),
-    actor_role VARCHAR(16),
-    action VARCHAR(64) NOT NULL,
-    target_type VARCHAR(64) NOT NULL,
-    target_id UUID,
-    detail JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id);
-CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
+-- 说明：
+-- 1. 当前课程原型未拆分独立 nodule 表，结节结果直接保存在 jobs.nodules 和 reports.nodules JSON 字段中。
+-- 2. 当前课程原型未接入真实对象存储，studies.object_key 可保存本地 CT 文件路径。
+-- 3. 当前课程原型未引入独立 followup_plan 表，随访时间直接存储在 reports.followup_due_at 字段中。

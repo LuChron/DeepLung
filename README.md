@@ -1,9 +1,10 @@
 # DeepLung
 
-基于胸部 CT 的肺结节辅助检出、风险分层与医患双端协同随访系统。
+肺结节辅助检出与医患协同随访系统（课程原型，非临床系统）。
 
-> 说明：本仓库用于课程项目、工程原型和流程验证，不作为临床诊断系统。
+## 快速开始（本地）
 
+<<<<<<< HEAD
 ## 1. 当前状态（2026-03）
 
 当前版本已跑通完整闭环（不依赖外接对话 API 也可完整运行）：
@@ -82,88 +83,106 @@ DeepLung/
 - Python 3.11
 - Node.js 20+
 - Conda（推荐）
+=======
+### 1) 首次安装
+>>>>>>> dev
 
 ```bash
 conda create -n deeplung -y python=3.11
 conda activate deeplung
+
+# CPU 示例（如有 GPU 请按你的环境安装 torch/torchvision）
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+
+python -m pip install -r backend/requirements.txt -r ai-engine/requirements.txt -r ai-engine/requirements-monai.txt
+
+cd frontend && npm install
 ```
 
-安装后端 + AI 依赖：
+### 2) 配置后端 `.env`
 
 ```bash
-python -m pip install -r backend/requirements.txt -r ai-engine/requirements.txt
-python -m pip install -r ai-engine/requirements-monai.txt
+cp backend/.env.example backend/.env
 ```
 
-安装前端依赖：
+编辑 `backend/.env`（至少改这一项）：
 
-```bash
-cd frontend
-npm install
+```env
+AI_ENGINE_BASE_URL=http://127.0.0.1:8100
 ```
 
-## 5.2 启动顺序（3 个终端）
+如需接入 DeepSeek（可选）：
 
-### 终端 A：AI Engine（MONAI）
+```env
+ASSISTANT_PROVIDER=external
+ASSISTANT_API_BASE_URL=https://api.deepseek.com/v1
+ASSISTANT_API_KEY=sk-xxxx
+ASSISTANT_MODEL=deepseek-chat
+ASSISTANT_FALLBACK_TO_MOCK_ON_ERROR=true
+```
+
+### 3) 启动服务（3 个终端）
+
+终端 A（AI Engine）
 
 ```bash
+conda activate deeplung
 cd ai-engine
 export DETECTOR_PROVIDER=monai_bundle
-export MODEL_VERSION=monai-lung-nodule-v1
-export MONAI_BUNDLE_REPO_ID=MONAI/lung_nodule_ct_detection
-export MONAI_BUNDLE_DIR=./models/lung_nodule_ct_detection
 export MONAI_AUTO_DOWNLOAD=true
-export MONAI_INFER_CONFIG_RELPATH=configs/inference.json
-export MONAI_META_FILE_RELPATH=configs/metadata.json
-export MONAI_DEVICE=auto
-export FALLBACK_TO_MOCK_ON_ERROR=true
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8100
+export MONAI_DEVICE=cpu
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8100
 ```
 
-### 终端 B：Backend
+终端 B（Backend）
 
 ```bash
+conda activate deeplung
 cd backend
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 终端 C：Frontend
+终端 C（Frontend）
 
 ```bash
 cd frontend
-npm run dev
+npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
-## 5.3 访问地址
+## 访问地址
 
-- Backend OpenAPI: http://127.0.0.1:8000/docs
-- AI Engine OpenAPI: http://127.0.0.1:8100/docs
-- Frontend: http://127.0.0.1:5173
+- 前端: `http://127.0.0.1:5173`
+- 后端文档: `http://127.0.0.1:8000/docs`
+- 后端健康检查: `http://127.0.0.1:8000/api/v1/health`
+- AI Engine 健康检查: `http://127.0.0.1:8100/health`
 
-## 6. 默认登录账号
+## 默认账号
 
-首次启动 Backend 会自动初始化：
+- 医生: `doctor_demo / doctor123456`
+- 患者: `patient_demo / patient123456`
+- 管理员: `admin / admin123456`
 
-- 管理员：`admin / admin123456`
-- 医生：`doctor_demo / doctor123456`
-- 患者：`patient_demo / patient123456`
+## 5 分钟自测流程
 
-## 7. 外接 AI 对话接口（已预留并打通）
+1. 医生登录，进入工作台。
+2. 输入后端可访问的 CT 绝对路径，点击“上传并触发 AI 推理”。
+3. 等任务 `SUCCEEDED` 后签发报告。
+4. 切换患者账号，查看报告与消息。
 
-患者端聊天调用后端：`POST /api/v1/chat/assistant`
+## 常见问题
 
-默认：
+- `404 /health`：后端健康检查是 `/api/v1/health`。
+- `fail to fetch`：先确认 `8000/8100/5173` 都在运行；`backend/.env` 的 `AI_ENGINE_BASE_URL` 本地模式要用 `http://127.0.0.1:8100`。
 
-- `ASSISTANT_PROVIDER=mock`
+## 安全说明
 
-切到外部 API（OpenAI 兼容格式）时，仅需配置环境变量并重启 backend：
+- `backend/.env` 已被 `.gitignore` 忽略，不会自动提交。
+- 可用以下命令确认：
 
 ```bash
-export ASSISTANT_PROVIDER=external
-export ASSISTANT_API_BASE_URL=https://api.openai.com/v1
-export ASSISTANT_API_KEY=your_api_key
-export ASSISTANT_MODEL=gpt-4o-mini
+git check-ignore -v backend/.env
 ```
+<<<<<<< HEAD
 
 可选回退开关：
 
@@ -202,3 +221,5 @@ export ASSISTANT_MODEL=gpt-4o-mini
 - 当前 `upload_ct` 是“路径入参”模式，不是二进制文件上传。
 - MONAI 输入需为可读影像文件（nii/nii.gz/mhd/mha/dcm）。
 - 患者对话当前默认是 `mock` provider，外接 API 需自行填密钥。
+=======
+>>>>>>> dev

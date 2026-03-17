@@ -37,7 +37,7 @@ export function LoginPage() {
       {/* Background */}
       <div 
         className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-blue-50 to-teal-50"
-        style={{
+      style={{
           backgroundImage: `url('https://images.unsplash.com/photo-1759270463226-c5e04a4542c1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG1lZGljYWwlMjBiYWNrZ3JvdW5kJTIwYmx1ZXxlbnwxfHx8fDE3NzM1NzI3NDh8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -58,8 +58,8 @@ export function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 mb-4">
             <MedicineBoxOutlined className="text-white text-3xl" />
           </div>
-          <h1 className="text-3xl mb-2">Medical AI Platform</h1>
-          <p className="text-gray-500">Advanced Diagnostic Intelligence</p>
+          <h1 className="text-3xl mb-2">医疗 AI 平台</h1>
+          <p className="text-gray-500">智能辅助诊断系统</p>
         </div>
 
         {/* Segmented Control */}
@@ -74,7 +74,7 @@ export function LoginPage() {
                 label: (
                   <div className="py-2 px-4">
                     <UserOutlined className="mr-2" />
-                    👨‍⚕️ Doctor Login
+                    👨‍⚕️ 医生登录
                   </div>
                 ),
                 value: 'doctor',
@@ -83,7 +83,7 @@ export function LoginPage() {
                 label: (
                   <div className="py-2 px-4">
                     <TeamOutlined className="mr-2" />
-                    🧑‍🤝‍🧑 Patient Login
+                    🧑‍🤝‍🧑 患者登录
                   </div>
                 ),
                 value: 'patient',
@@ -96,23 +96,23 @@ export function LoginPage() {
         <Form form={form} onFinish={handleLogin} layout="vertical">
           <Form.Item
             name="id"
-            rules={[{ required: true, message: 'Please input your ID!' }]}
+            rules={[{ required: true, message: '请输入账号！' }]}
           >
             <Input
               size="large"
               prefix={<UserOutlined className="text-gray-400" />}
-              placeholder={loginType === 'doctor' ? 'Doctor ID' : 'Patient ID'}
+              placeholder={loginType === 'doctor' ? '医生账号' : '患者账号'}
             />
           </Form.Item>
 
           <Form.Item
             name="password"
-            rules={[{ required: true, message: 'Please input your password!' }]}
+            rules={[{ required: true, message: '请输入密码！' }]}
           >
             <Input.Password
               size="large"
               prefix={<LockOutlined className="text-gray-400" />}
-              placeholder="Password"
+              placeholder="密码"
             />
           </Form.Item>
 
@@ -125,24 +125,24 @@ export function LoginPage() {
               className="h-12 text-lg"
               loading={submitting}
             >
-              Sign In
+              登录
             </Button>
           </Form.Item>
 
           <div className="text-center text-sm text-gray-500 mt-4">
             <a href="#" className="text-cyan-600 hover:text-cyan-700">
-              Forgot Password?
+              忘记密码？
             </a>
             <span className="mx-2">|</span>
             <a href="#" className="text-cyan-600 hover:text-cyan-700">
-              Need Help?
+              需要帮助？
             </a>
           </div>
         </Form>
 
         <div className="mt-6 pt-6 border-t border-gray-200 text-center text-xs text-gray-500">
-          <p>🔒 Secure Healthcare Platform | HIPAA Compliant</p>
-          <p className="mt-1">© 2026 Medical AI SaaS Platform</p>
+          <p>🔒 安全医疗平台 | 隐私合规</p>
+          <p className="mt-1">© 2026 医疗 AI 平台</p>
         </div>
       </Card>
     </div>
