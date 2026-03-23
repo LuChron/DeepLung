@@ -43,6 +43,7 @@ import {
   type PatientReportResponse,
 } from '../services/api';
 import { clearSession, getUsername } from '../services/session';
+import { MarkdownMessage } from './MarkdownMessage';
 
 const { Header, Sider, Content } = Layout;
 
@@ -477,7 +478,7 @@ export function PatientDashboard() {
                   msg.type === 'ai' ? 'bg-blue-50 text-gray-800' : 'bg-cyan-500 text-white'
                 }`}
               >
-                {msg.text}
+                {msg.type === 'ai' ? <MarkdownMessage content={msg.text} /> : <div className="whitespace-pre-wrap break-words">{msg.text}</div>}
                 {msg.type === 'ai' && msg.meta && <div className="mt-1 text-[10px] opacity-60">{msg.meta}</div>}
               </div>
             </div>

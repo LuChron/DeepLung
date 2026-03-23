@@ -1,0 +1,120 @@
+.chat-markdown {
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.chat-markdown > :first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown p,
+.chat-markdown ul,
+.chat-markdown ol,
+.chat-markdown blockquote,
+.chat-markdown pre,
+.chat-markdown table,
+.chat-markdown hr {
+  margin: 0.6em 0;
+}
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4,
+.chat-markdown h5,
+.chat-markdown h6 {
+  margin: 0.85em 0 0.45em;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.chat-markdown h1 {
+  font-size: 1.1rem;
+}
+
+.chat-markdown h2 {
+  font-size: 1.02rem;
+}
+
+.chat-markdown h3,
+.chat-markdown h4,
+.chat-markdown h5,
+.chat-markdown h6 {
+  font-size: 0.96rem;
+}
+
+.chat-markdown strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.chat-markdown em {
+  font-style: italic;
+}
+
+.chat-markdown ul,
+.chat-markdown ol {
+  padding-left: 1.35rem;
+}
+
+.chat-markdown li + li {
+  margin-top: 0.3em;
+}
+
+.chat-markdown blockquote {
+  padding-left: 0.9rem;
+  border-left: 3px solid #67e8f9;
+  color: #475569;
+}
+
+.chat-markdown code {
+  padding: 0.12rem 0.35rem;
+  border-radius: 0.35rem;
+  background: rgba(8, 145, 178, 0.12);
+  color: #155e75;
+  font-size: 0.92em;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.chat-markdown pre {
+  overflow-x: auto;
+  padding: 0.8rem 0.95rem;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.chat-markdown pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 0.88em;
+}
+
+.chat-markdown a {
+  color: #0f766e;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chat-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.chat-markdown th,
+.chat-markdown td {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  text-align: left;
+}
+
+.chat-markdown th {
+  background: rgba(226, 232, 240, 0.7);
+  font-weight: 600;
+}
