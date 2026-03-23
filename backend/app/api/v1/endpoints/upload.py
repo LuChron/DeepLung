@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
@@ -12,7 +14,13 @@ router = APIRouter(tags=['studies'])
 
 @router.post('/upload_ct', response_model=APIResponse[UploadCTResponse])
 def upload_ct(payload: UploadCTRequest) -> APIResponse[UploadCTResponse]:
-    record = store.create_study(payload.patient_id, payload.file_name)
+    file_path = Path(payload.file_name).expanduser()
+    if not file_path.is_absolute():
+        raise HTTPException(status_code=400, detail='ct path must be an absolute local path')
+    if not file_path.exists():
+        raise HTTPException(status_code=400, detail=f'ct file not found: {file_path}')
+
+    record = store.create_study(payload.patient_id, str(file_path))
     return APIResponse(
         data=UploadCTResponse(
             study_id=record.study_id,

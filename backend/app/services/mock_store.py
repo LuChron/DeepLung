@@ -44,7 +44,7 @@ class PersistentStore:
     def create_study(self, patient_id: str, file_name: str) -> StudyRecord:
         study_id = f"S{uuid4().hex[:12].upper()}"
         file_path = Path(file_name)
-        if file_path.is_absolute() and file_path.exists():
+        if file_path.is_absolute():
             object_key = str(file_path)
         else:
             object_key = f"ct/{patient_id}/{study_id}/{file_name}"
